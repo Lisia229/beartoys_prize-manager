@@ -484,6 +484,33 @@ using ((select auth.uid()) = user_id);</code></pre>
               <button class="primary" type="submit">新增活動</button>
             </form>
 
+            <form class="panel" id="lottery-form">
+              <h3>快速新增一番賞配置</h3>
+              <label>
+                活動名稱
+                <input id="lottery-activity-name" required placeholder="例：死神一番賞第 1 彈" />
+              </label>
+              <label>
+                總抽數
+                <input id="lottery-total" type="number" min="1" step="1" required placeholder="例：80" />
+              </label>
+              <label>
+                賞別配置
+                <textarea id="lottery-lines" required placeholder="例：
+A賞 一護模型 2
+B賞 劍八模型 3
+C賞 夜一模型 5"></textarea>
+              </label>
+              <label class="checkbox-label">
+                <input id="lottery-as-pending" type="checkbox" checked />
+                配置數量先放待到貨
+              </label>
+              <button class="primary" type="submit">建立活動與品項</button>
+              <div class="result-box neutral" id="lottery-result">每行請輸入：賞別 名稱 數量。</div>
+            </form>
+          </div>
+
+          <div class="two-column">
             <form class="panel" id="source-form">
               <h3>新增訂單來源／平台</h3>
               <label>
@@ -496,9 +523,6 @@ using ((select auth.uid()) = user_id);</code></pre>
               </label>
               <button class="primary" type="submit">新增來源</button>
             </form>
-          </div>
-
-          <div class="two-column">
 
             <form class="panel" id="item-form">
               <h3>新增品項／賞別</h3>
@@ -528,6 +552,21 @@ using ((select auth.uid()) = user_id);</code></pre>
               </label>
               <button class="primary" type="submit">新增品項</button>
             </form>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>活動</th>
+                  <th>品項數</th>
+                  <th>訂單明細</th>
+                  <th>備註</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="activities-table"></tbody>
+            </table>
           </div>
 
           <div class="table-wrap">
@@ -580,6 +619,26 @@ using ((select auth.uid()) = user_id);</code></pre>
         <menu>
           <button class="secondary" value="cancel" type="button" id="close-line-dialog">取消</button>
           <button class="primary" value="confirm" type="submit">確認</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="delete-activity-dialog">
+      <form method="dialog" id="delete-activity-form">
+        <h3>刪除活動</h3>
+        <input type="hidden" id="delete-activity-id" />
+        <p id="delete-activity-message"></p>
+        <p class="warning-box">
+          安全碼：<strong id="delete-activity-code"></strong>
+        </p>
+        <label>
+          請輸入安全碼
+          <input id="delete-activity-confirm" autocomplete="off" required />
+        </label>
+        <div class="result-box error hidden" id="delete-activity-error"></div>
+        <menu>
+          <button class="secondary" value="cancel" type="button" id="close-delete-activity-dialog">取消</button>
+          <button class="danger" value="confirm" type="submit">確認刪除</button>
         </menu>
       </form>
     </dialog>

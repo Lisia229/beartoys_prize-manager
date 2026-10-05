@@ -24,6 +24,7 @@ let cloudSettings = loadCloudSettings();
 let cloudUser = null;
 let cloudAuthSubscription = null;
 let state = loadState();
+let pendingActivityDeleteCode = "";
 
 function seedState() {
   const activityA = uid();
@@ -531,6 +532,14 @@ function itemOptions(activityId = "") {
     .map((item) => ({ value: item.id, label: `${item.name}｜${activityName(item.activityId)}` }));
 }
 
+function activityUsage(activityId) {
+  const itemIds = state.items.filter((item) => item.activityId === activityId).map((item) => item.id);
+  const lines = allLines().filter((line) => line.activityId === activityId || itemIds.includes(line.itemId));
+  const receipts = state.receipts.filter((receipt) => receipt.activityId === activityId || itemIds.includes(receipt.itemId));
+  const shipments = state.shipments.filter((shipment) => itemIds.includes(shipment.itemId));
+  return { itemIds, lines, receipts, shipments };
+}
+
 function renderSelects() {
   const activitySelects = [
     "#order-activity",
@@ -731,6 +740,22 @@ function renderItems() {
       .join("") || `<tr><td colspan="7">尚未建立品項。</td></tr>`;
 }
 
+function renderActivities() {
+  $("#activities-table").innerHTML =
+    state.activities
+      .map((activity) => {
+        const usage = activityUsage(activity.id);
+        return `<tr>
+          <td>${escapeHtml(activity.name)}</td>
+          <td>${moneyless(usage.itemIds.length)}</td>
+          <td>${moneyless(usage.lines.length)}</td>
+          <td>${escapeHtml(activity.note || "")}</td>
+          <td><button class="danger" data-delete-activity="${activity.id}">刪除</button></td>
+        </tr>`;
+      })
+      .join("") || `<tr><td colspan="5">尚未建立活動。</td></tr>`;
+}
+
 function renderSources() {
   $("#sources-table").innerHTML =
     (state.sources || [])
@@ -752,6 +777,7 @@ function renderAll(options = {}) {
   renderInventory();
   renderDisputes();
   renderItems();
+  renderActivities();
   renderSources();
   updateCloudUi();
 }
@@ -960,15 +986,130 @@ function handleDisputeSubmit(event) {
 
 function handleActivitySubmit(event) {
   event.preventDefault();
+  const name = $("#activity-name").value.trim();
+  if (!name) return;
+  if (state.activities.some((activity) => activity.name === name)) {
+    alert("這個活動名稱已經存在。");
+    return;
+  }
   state.activities.push({
     id: uid(),
-    name: $("#activity-name").value.trim(),
+    name,
     note: $("#activity-note").value.trim(),
     createdAt: now(),
     updatedAt: now()
   });
   event.target.reset();
   renderAll();
+}
+
+function parseLotteryLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^(\S+)\s+(.+?)\s+(\d+)$/);
+  if (!match) return { error: `無法解析「${trimmed}」` };
+  return {
+    prize: match[1],
+    name: match[2].trim(),
+    qty: toInt(match[3])
+  };
+}
+
+function handleLotterySubmit(event) {
+  event.preventDefault();
+  const resultBox = $("#lottery-result");
+  const activityNameValue = $("#lottery-activity-name").value.trim();
+  const total = toInt($("#lottery-total").value);
+  const parsedLines = $("#lottery-lines")
+    .value.split(/\r?\n/)
+    .map(parseLotteryLine)
+    .filter(Boolean);
+  const errors = parsedLines.filter((line) => line.error).map((line) => line.error);
+  const items = parsedLines.filter((line) => !line.error);
+  const itemTotal = items.reduce((sum, item) => sum + item.qty, 0);
+  if (!activityNameValue) errors.push("請輸入活動名稱");
+  if (state.activities.some((activity) => activity.name === activityNameValue)) errors.push("這個活動名稱已經存在");
+  if (total < 1) errors.push("總抽數需大於 0");
+  if (!items.length) errors.push("請至少輸入一個賞別配置");
+  if (items.some((item) => item.qty < 1)) errors.push("每個賞別數量都需大於 0");
+  if (itemTotal !== total) errors.push(`賞別數量合計 ${itemTotal}，與總抽數 ${total} 不一致`);
+  if (errors.length) {
+    resultBox.textContent = errors.join("。");
+    resultBox.className = "result-box error";
+    return;
+  }
+
+  const activityId = uid();
+  const asPending = $("#lottery-as-pending").checked;
+  state.activities.push({
+    id: activityId,
+    name: activityNameValue,
+    note: `一番賞配置，總抽數 ${total}`,
+    createdAt: now(),
+    updatedAt: now()
+  });
+  items.forEach((item) => {
+    state.items.push({
+      id: uid(),
+      activityId,
+      name: `${item.prize} ${item.name}`,
+      initialStock: asPending ? 0 : item.qty,
+      incomingPending: asPending ? item.qty : 0,
+      stockAdjustment: 0,
+      note: `配置 ${item.qty} 抽`,
+      createdAt: now(),
+      updatedAt: now()
+    });
+  });
+  event.target.reset();
+  $("#lottery-as-pending").checked = true;
+  resultBox.textContent = `已建立「${activityNameValue}」與 ${items.length} 個品項。`;
+  resultBox.className = "result-box ok";
+  renderAll();
+}
+
+function openDeleteActivityDialog(activityId) {
+  const activity = state.activities.find((entry) => entry.id === activityId);
+  if (!activity) return;
+  const usage = activityUsage(activityId);
+  pendingActivityDeleteCode = String(Math.floor(100000 + Math.random() * 900000));
+  $("#delete-activity-id").value = activityId;
+  $("#delete-activity-message").textContent = `將刪除「${activity.name}」，並移除 ${usage.itemIds.length} 個品項、${usage.lines.length} 筆訂單明細、${usage.receipts.length} 筆收貨、${usage.shipments.length} 筆出貨紀錄。此操作無法復原。`;
+  $("#delete-activity-code").textContent = pendingActivityDeleteCode;
+  $("#delete-activity-confirm").value = "";
+  $("#delete-activity-error").classList.add("hidden");
+  $("#delete-activity-error").textContent = "";
+  $("#delete-activity-dialog").showModal();
+}
+
+function deleteActivity(activityId) {
+  const usage = activityUsage(activityId);
+  const itemIdSet = new Set(usage.itemIds);
+  const removedOrderIds = new Set();
+  state.activities = state.activities.filter((activity) => activity.id !== activityId);
+  state.items = state.items.filter((item) => item.activityId !== activityId);
+  state.receipts = state.receipts.filter((receipt) => receipt.activityId !== activityId && !itemIdSet.has(receipt.itemId));
+  state.shipments = state.shipments.filter((shipment) => !itemIdSet.has(shipment.itemId));
+  state.orders = state.orders
+    .map((order) => {
+      const lines = order.lines.filter((line) => line.activityId !== activityId && !itemIdSet.has(line.itemId));
+      if (!lines.length) removedOrderIds.add(order.id);
+      return { ...order, lines, updatedAt: now() };
+    })
+    .filter((order) => order.lines.length);
+  state.disputes = state.disputes.map((dispute) =>
+    removedOrderIds.has(dispute.relatedOrderId) ? { ...dispute, relatedOrderId: "", updatedAt: now() } : dispute
+  );
+  state.history.push({
+    id: uid(),
+    orderId: "",
+    orderLineId: "",
+    type: "delete_activity",
+    beforeValue: activityId,
+    afterValue: "",
+    note: "刪除活動與相關資料",
+    createdAt: now()
+  });
 }
 
 function handleItemSubmit(event) {
@@ -1184,6 +1325,7 @@ function bindEvents() {
   $("#line-action-form").addEventListener("submit", handleLineActionSubmit);
   $("#dispute-form").addEventListener("submit", handleDisputeSubmit);
   $("#activity-form").addEventListener("submit", handleActivitySubmit);
+  $("#lottery-form").addEventListener("submit", handleLotterySubmit);
   $("#item-form").addEventListener("submit", handleItemSubmit);
   $("#source-form").addEventListener("submit", handleSourceSubmit);
   $("#cloud-form").addEventListener("submit", async (event) => {
@@ -1225,8 +1367,26 @@ function bindEvents() {
     $("#dispute-flagged").checked = true;
   });
   $("#close-line-dialog").addEventListener("click", () => $("#line-action-dialog").close());
+  $("#close-delete-activity-dialog").addEventListener("click", () => $("#delete-activity-dialog").close());
+  $("#delete-activity-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if ($("#delete-activity-confirm").value.trim() !== pendingActivityDeleteCode) {
+      $("#delete-activity-error").textContent = "安全碼不正確，請重新輸入。";
+      $("#delete-activity-error").classList.remove("hidden");
+      return;
+    }
+    deleteActivity($("#delete-activity-id").value);
+    pendingActivityDeleteCode = "";
+    $("#delete-activity-dialog").close();
+    renderAll();
+  });
 
   document.addEventListener("click", (event) => {
+    const deleteActivityButton = event.target.closest("[data-delete-activity]");
+    if (deleteActivityButton) {
+      openDeleteActivityDialog(deleteActivityButton.dataset.deleteActivity);
+    }
+
     const editOrder = event.target.closest("[data-edit-order]");
     if (editOrder) {
       const { order, line } = findOrderLine(editOrder.dataset.editOrder);
