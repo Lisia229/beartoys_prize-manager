@@ -96,9 +96,9 @@ h3 {
 
 .auth-card {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1fr);
   gap: 14px;
-  width: min(1180px, 100%);
+  width: min(840px, 100%);
   align-items: start;
 }
 

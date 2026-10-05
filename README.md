@@ -82,7 +82,7 @@ to authenticated
 using ((select auth.uid()) = user_id);
 ```
 
-然後到網站的「雲端同步」分頁輸入：
+正式版已內建 Supabase URL 與 anon public key。登入後仍可到網站的「雲端同步」分頁檢查或覆寫：
 
 - Supabase URL
 - Supabase anon key
@@ -91,7 +91,7 @@ using ((select auth.uid()) = user_id);
 
 登入後按「上傳本機資料」即可把目前資料送上雲端。之後資料變更會自動同步，並同時保留本機備份。
 
-未登入時網站只會顯示 Supabase 連線設定與登入頁，不會顯示後台管理畫面。登入成功後才會載入訂單、庫存、客訴與設定資料。正式使用建議先建立你和朋友的帳號，再到 Supabase Authentication 關閉公開註冊。
+未登入時網站只會顯示登入頁，不會顯示後台管理畫面，也不需要再次輸入 Supabase 連線資料。登入成功後才會載入訂單、庫存、客訴與設定資料。正式使用建議先建立你和朋友的帳號，再到 Supabase Authentication 關閉公開註冊。
 
 注意：這是單帳號正式版。若未來要多人共同管理、角色權限或平台 API 串接，建議再拆成 `activities`、`items`、`orders`、`order_lines`、`receipts`、`shipments`、`disputes` 等關聯式資料表。
 

@@ -23,22 +23,8 @@
         <div>
           <p class="eyebrow">安全登入</p>
           <h2>登入後才能進入後台</h2>
-          <p class="help">請先設定 Supabase，並使用已授權的 Email / 密碼登入。未登入前不會顯示訂單、庫存或客訴資料。</p>
+          <p class="help">請使用已授權的 Email / 密碼登入。未登入前不會顯示訂單、庫存或客訴資料。</p>
         </div>
-
-        <form class="panel" id="gate-cloud-form">
-          <h3>Supabase 連線</h3>
-          <label>
-            Supabase URL
-            <input id="gate-cloud-url" placeholder="https://xxxx.supabase.co" />
-          </label>
-          <label>
-            Supabase anon key
-            <input id="gate-cloud-key" type="password" placeholder="只貼 anon public key" />
-          </label>
-          <button class="primary" type="submit">儲存設定</button>
-          <div class="result-box" id="gate-cloud-result">尚未設定雲端同步。</div>
-        </form>
 
         <form class="panel" id="gate-auth-form">
           <h3>登入</h3>
@@ -404,7 +390,7 @@
                 <button class="primary" type="submit">儲存設定</button>
                 <button class="secondary" id="pull-cloud" type="button">從雲端下載</button>
                 <button class="secondary" id="push-cloud" type="button">上傳本機資料</button>
-                <button class="danger" id="disable-cloud" type="button">停用雲端</button>
+                <button class="danger" id="disable-cloud" type="button">還原預設連線並登出</button>
               </div>
               <div class="result-box" id="cloud-result">尚未設定雲端同步。</div>
             </form>

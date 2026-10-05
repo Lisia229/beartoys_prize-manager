@@ -1,5 +1,10 @@
 const STORAGE_KEY = "beartoys-prize-manager-v1";
 const CLOUD_CONFIG_KEY = "beartoys-prize-manager-cloud-config-v1";
+const DEFAULT_CLOUD_SETTINGS = {
+  url: "https://qvfifwhgfkfjojaycnkx.supabase.co",
+  anonKey:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Zmlmd2hnZmtmam9qYXljbmt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExNTQxMjAsImV4cCI6MjEwNjczMDEyMH0._RyEowyrslZpxkPMPc_vGPr94xes8PS8HZfyWUJF-tU"
+};
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -156,11 +161,15 @@ function saveState() {
 
 function loadCloudSettings() {
   const stored = localStorage.getItem(CLOUD_CONFIG_KEY);
-  if (!stored) return { url: "", anonKey: "" };
+  if (!stored) return { ...DEFAULT_CLOUD_SETTINGS };
   try {
-    return { url: "", anonKey: "", ...JSON.parse(stored) };
+    const parsed = JSON.parse(stored);
+    return {
+      url: parsed.url || DEFAULT_CLOUD_SETTINGS.url,
+      anonKey: parsed.anonKey || DEFAULT_CLOUD_SETTINGS.anonKey
+    };
   } catch {
-    return { url: "", anonKey: "" };
+    return { ...DEFAULT_CLOUD_SETTINGS };
   }
 }
 
@@ -179,7 +188,7 @@ function createCloudClient() {
 }
 
 function setCloudResult(message, type = "neutral") {
-  ["#cloud-result", "#gate-cloud-result"].forEach((selector) => {
+  ["#cloud-result"].forEach((selector) => {
     const box = $(selector);
     if (!box) return;
     box.textContent = message;
@@ -202,11 +211,11 @@ function setStorageNote(message) {
 }
 
 function updateCloudUi() {
-  ["#cloud-url", "#gate-cloud-url"].forEach((selector) => {
+  ["#cloud-url"].forEach((selector) => {
     const input = $(selector);
     if (input) input.value = cloudSettings.url || "";
   });
-  ["#cloud-key", "#gate-cloud-key"].forEach((selector) => {
+  ["#cloud-key"].forEach((selector) => {
     const input = $(selector);
     if (input) input.value = cloudSettings.anonKey || "";
   });
@@ -235,6 +244,7 @@ async function initCloudSync({ pullRemote = true } = {}) {
   cloudClient = createCloudClient();
   if (!cloudClient) {
     setCloudResult("找不到 Supabase SDK，請確認網路可載入 supabase-js。", "error");
+    setAuthStatus("雲端連線載入失敗，請確認網路後重新整理。", "error");
     updateCloudUi();
     return false;
   }
@@ -347,7 +357,10 @@ function queueCloudSave() {
 
 async function signInWithEmail(email, password) {
   if (!cloudClient) await initCloudSync({ pullRemote: false });
-  if (!cloudClient) return;
+  if (!cloudClient) {
+    setAuthStatus("雲端連線尚未完成，請重新整理後再試。", "error");
+    return;
+  }
   const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
   if (error) {
     setAuthStatus(`登入失敗：${error.message}`, "error");
@@ -1116,15 +1129,6 @@ function bindEvents() {
     await initCloudSync();
   });
   $("#auth-form").addEventListener("submit", (event) => event.preventDefault());
-  $("#gate-cloud-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    saveCloudSettings({
-      url: $("#gate-cloud-url").value.trim(),
-      anonKey: $("#gate-cloud-key").value.trim()
-    });
-    setCloudResult("設定已儲存，正在讀取登入狀態...", "neutral");
-    await initCloudSync();
-  });
   $("#gate-auth-form").addEventListener("submit", (event) => event.preventDefault());
 
   $("#order-activity").addEventListener("change", renderSelects);
@@ -1254,18 +1258,18 @@ function bindEvents() {
     if (!confirm("會用目前本機資料覆蓋雲端資料，確定要上傳？")) return;
     await pushCloudState();
   });
-  $("#disable-cloud").addEventListener("click", () => {
-    if (!confirm("停用後只會使用本機 localStorage，雲端資料不會被刪除。確定停用？")) return;
+  $("#disable-cloud").addEventListener("click", async () => {
+    if (!confirm("會登出並還原程式內建的 Supabase 連線設定，雲端資料不會被刪除。確定繼續？")) return;
     localStorage.removeItem(CLOUD_CONFIG_KEY);
-    cloudSettings = { url: "", anonKey: "" };
+    cloudSettings = { ...DEFAULT_CLOUD_SETTINGS };
     cloudUser = null;
     if (cloudAuthSubscription) {
       cloudAuthSubscription.unsubscribe();
       cloudAuthSubscription = null;
     }
     cloudClient = null;
-    updateCloudUi();
-    setCloudResult("已停用雲端同步。", "neutral");
+    await initCloudSync({ pullRemote: false });
+    setCloudResult("已還原預設連線設定，請重新登入。", "neutral");
   });
   $("#auth-login").addEventListener("click", async () => {
     await signInWithEmail($("#auth-email").value.trim(), $("#auth-password").value);
