@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>抽賞訂單、收貨與出貨管理</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">抽賞管理第一版</p>
+        <h1>訂單、收貨與出貨管理</h1>
+      </div>
+      <div class="storage-note">
+        展示版資料儲存在本機瀏覽器 localStorage
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="主要功能">
+        <button class="nav-btn active" data-view="dashboard">總覽</button>
+        <button class="nav-btn" data-view="orders">訂單</button>
+        <button class="nav-btn" data-view="inventory">收貨與庫存</button>
+        <button class="nav-btn" data-view="disputes">客訴與爭議</button>
+        <button class="nav-btn" data-view="imports">CSV 匯入匯出</button>
+        <button class="nav-btn" data-view="settings">活動與品項</button>
+      </aside>
+
+      <section class="content">
+        <section class="view active" id="dashboard-view">
+          <div class="section-heading">
+            <div>
+              <h2>缺貨總覽</h2>
+              <p>優先顯示還需要收貨的品項，庫存與訂單變動後會即時計算。</p>
+            </div>
+            <div class="quick-actions">
+              <button class="primary" data-open-view="inventory" data-focus-panel="receipt">新增收貨</button>
+              <button class="secondary" data-open-view="inventory" data-focus-panel="shipment">登記出貨</button>
+            </div>
+          </div>
+
+          <div class="stats-grid" id="stats-grid"></div>
+
+          <div class="filters">
+            <label>
+              活動
+              <select id="dashboard-activity-filter"></select>
+            </label>
+            <label>
+              品項
+              <input id="dashboard-search" type="search" placeholder="搜尋品項或活動" />
+            </label>
+            <label>
+              狀態
+              <select id="dashboard-status-filter">
+                <option value="all">全部</option>
+                <option value="shortage">只看缺貨</option>
+                <option value="enough">只看足夠</option>
+                <option value="incoming">只看有待到貨</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>狀態</th>
+                  <th>活動／賞池</th>
+                  <th>品項／賞別</th>
+                  <th>有效需求</th>
+                  <th>已出貨</th>
+                  <th>尚未出貨</th>
+                  <th>可用庫存</th>
+                  <th>待到貨</th>
+                  <th>還需要收貨</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="orders-view">
+          <div class="section-heading">
+            <div>
+              <h2>訂單管理</h2>
+              <p>新增、修改、部分取消與部分出貨都會留下紀錄。</p>
+            </div>
+          </div>
+
+          <form class="panel-grid" id="order-form">
+            <input type="hidden" id="order-id" />
+            <label>
+              客人姓名
+              <input id="order-customer" required placeholder="例：王小美" />
+            </label>
+            <label>
+              會員代號
+              <input id="order-member" required placeholder="例：BT00123" />
+            </label>
+            <label>
+              活動／賞池
+              <select id="order-activity" required></select>
+            </label>
+            <label>
+              商品或賞別
+              <select id="order-item" required></select>
+            </label>
+            <label>
+              訂購數量
+              <input id="order-qty" type="number" min="1" step="1" required />
+            </label>
+            <label>
+              備註
+              <input id="order-note" placeholder="付款、保留、特殊需求..." />
+            </label>
+            <div class="form-actions">
+              <button class="primary" type="submit">儲存訂單</button>
+              <button class="secondary" type="button" id="reset-order-form">清空</button>
+            </div>
+          </form>
+          <div id="order-warning" class="warning-box hidden"></div>
+
+          <div class="filters compact">
+            <label>
+              搜尋
+              <input id="order-search" type="search" placeholder="姓名、會員代號、活動、品項" />
+            </label>
+            <label>
+              訂單狀態
+              <select id="order-status-filter">
+                <option value="all">全部</option>
+                <option value="open">未完成</option>
+                <option value="partial">部分出貨／取消</option>
+                <option value="shipped">已出貨</option>
+                <option value="cancelled">已取消</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>狀態</th>
+                  <th>客人</th>
+                  <th>會員代號</th>
+                  <th>活動</th>
+                  <th>品項</th>
+                  <th>訂購</th>
+                  <th>取消</th>
+                  <th>已出貨</th>
+                  <th>未出貨</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="inventory-view">
+          <div class="section-heading">
+            <div>
+              <h2>收貨、出貨與庫存</h2>
+              <p>收貨只增加庫存；出貨同時更新訂單已出貨數量並扣庫存。</p>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <form class="panel" id="receipt-form">
+              <h3>新增收貨</h3>
+              <label>
+                活動／賞池
+                <select id="receipt-activity" required></select>
+              </label>
+              <label>
+                品項／賞別
+                <select id="receipt-item" required></select>
+              </label>
+              <label>
+                本次收到數量
+                <input id="receipt-qty" type="number" min="1" step="1" required />
+              </label>
+              <label>
+                備註
+                <input id="receipt-note" placeholder="例：第一批到貨" />
+              </label>
+              <button class="primary" type="submit">新增收貨</button>
+            </form>
+
+            <form class="panel" id="shipment-form">
+              <h3>登記出貨</h3>
+              <label>
+                訂單
+                <select id="shipment-order" required></select>
+              </label>
+              <label>
+                本次出貨數量
+                <input id="shipment-qty" type="number" min="1" step="1" required />
+              </label>
+              <label>
+                備註
+                <input id="shipment-note" placeholder="例：宅配單號、面交" />
+              </label>
+              <button class="primary" type="submit">登記出貨</button>
+            </form>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>活動</th>
+                  <th>品項</th>
+                  <th>訂購</th>
+                  <th>取消</th>
+                  <th>有效需求</th>
+                  <th>已出貨</th>
+                  <th>尚未出貨</th>
+                  <th>可用庫存</th>
+                  <th>待到貨</th>
+                  <th>還需要收貨</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="disputes-view">
+          <div class="section-heading">
+            <div>
+              <h2>客訴與爭議紀錄</h2>
+              <p>會員代號為主要判斷，姓名相同只提示可能同一人。</p>
+            </div>
+          </div>
+
+          <form class="panel-grid" id="dispute-form">
+            <input type="hidden" id="dispute-id" />
+            <label>
+              會員代號
+              <input id="dispute-member" required />
+            </label>
+            <label>
+              姓名
+              <input id="dispute-customer" required />
+            </label>
+            <label>
+              相關訂單
+              <select id="dispute-order"></select>
+            </label>
+            <label>
+              處理狀態
+              <select id="dispute-status">
+                <option value="open">未處理</option>
+                <option value="processing">處理中</option>
+                <option value="resolved">已完成</option>
+              </select>
+            </label>
+            <label>
+              原因
+              <input id="dispute-reason" required placeholder="例：要求取消後仍爭議" />
+            </label>
+            <label>
+              備註
+              <input id="dispute-note" />
+            </label>
+            <label class="checkbox-label">
+              <input id="dispute-flagged" type="checkbox" checked />
+              標記為爭議會員
+            </label>
+            <div class="form-actions">
+              <button class="primary" type="submit">儲存紀錄</button>
+              <button class="secondary" type="button" id="reset-dispute-form">清空</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>標記</th>
+                  <th>會員代號</th>
+                  <th>姓名</th>
+                  <th>原因</th>
+                  <th>狀態</th>
+                  <th>日期</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="disputes-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="imports-view">
+          <div class="section-heading">
+            <div>
+              <h2>CSV 匯入匯出</h2>
+              <p>第一版支援訂單 CSV 匯入、全部資料匯出與備份檔還原。</p>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <section class="panel">
+              <h3>匯入訂單 CSV</h3>
+              <p class="help">欄位：customerName, memberCode, activityName, itemName, quantity, note</p>
+              <input id="csv-file" type="file" accept=".csv,text/csv" />
+              <button class="primary" id="import-orders" type="button">匯入訂單</button>
+              <div id="import-result" class="result-box"></div>
+            </section>
+            <section class="panel">
+              <h3>匯出與備份</h3>
+              <button class="secondary" id="export-inventory" type="button">匯出庫存統計 CSV</button>
+              <button class="secondary" id="export-orders" type="button">匯出訂單 CSV</button>
+              <button class="secondary" id="export-backup" type="button">匯出完整備份 JSON</button>
+              <label>
+                還原完整備份 JSON
+                <input id="backup-file" type="file" accept=".json,application/json" />
+              </label>
+              <button class="danger" id="clear-data" type="button">清除展示資料</button>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="settings-view">
+          <div class="section-heading">
+            <div>
+              <h2>活動與品項</h2>
+              <p>相同品名只要屬於不同活動，就會分開計算，不會混在一起。</p>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <form class="panel" id="activity-form">
+              <h3>新增活動／賞池</h3>
+              <label>
+                活動名稱
+                <input id="activity-name" required />
+              </label>
+              <label>
+                備註
+                <input id="activity-note" />
+              </label>
+              <button class="primary" type="submit">新增活動</button>
+            </form>
+
+            <form class="panel" id="item-form">
+              <h3>新增品項／賞別</h3>
+              <label>
+                活動
+                <select id="item-activity" required></select>
+              </label>
+              <label>
+                品項名稱
+                <input id="item-name" required />
+              </label>
+              <label>
+                期初庫存
+                <input id="item-initial" type="number" min="0" step="1" value="0" />
+              </label>
+              <label>
+                待到貨
+                <input id="item-pending" type="number" min="0" step="1" value="0" />
+              </label>
+              <label>
+                庫存調整
+                <input id="item-adjustment" type="number" step="1" value="0" />
+              </label>
+              <label>
+                備註
+                <input id="item-note" />
+              </label>
+              <button class="primary" type="submit">新增品項</button>
+            </form>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>活動</th>
+                  <th>品項</th>
+                  <th>期初庫存</th>
+                  <th>待到貨</th>
+                  <th>庫存調整</th>
+                  <th>備註</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="items-table"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="line-action-dialog">
+      <form method="dialog" id="line-action-form">
+        <h3 id="line-action-title">調整訂單</h3>
+        <input type="hidden" id="line-action-order-id" />
+        <input type="hidden" id="line-action-type" />
+        <p id="line-action-context"></p>
+        <label>
+          數量
+          <input id="line-action-qty" type="number" min="1" step="1" required />
+        </label>
+        <label>
+          備註
+          <input id="line-action-note" />
+        </label>
+        <menu>
+          <button class="secondary" value="cancel" type="button" id="close-line-dialog">取消</button>
+          <button class="primary" value="confirm" type="submit">確認</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
