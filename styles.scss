@@ -405,11 +405,17 @@ label {
   border-radius: 8px;
   padding: 12px;
 
-  legend {
-    padding: 0 4px;
+  .radio-title {
+    margin: 0;
     color: $muted;
     font-size: 13px;
     font-weight: 700;
+  }
+
+  .checkbox-label {
+    align-self: stretch;
+    justify-content: flex-start;
+    min-height: 32px;
   }
 }
 

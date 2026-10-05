@@ -537,8 +537,8 @@ C賞 夜一模型 5"></textarea>
                 最後賞名稱
                 <input id="lottery-last-prize" placeholder="例：最後賞 一護特別色模型" />
               </label>
-              <fieldset class="radio-group">
-                <legend>這套賞池目前狀態</legend>
+              <div class="radio-group" role="radiogroup" aria-label="這套賞池目前狀態">
+                <p class="radio-title">這套賞池目前狀態</p>
                 <label class="checkbox-label">
                   <input name="lottery-stock-mode" type="radio" value="stock" checked />
                   已經到貨，配置數量直接列入可用庫存
@@ -547,7 +547,7 @@ C賞 夜一模型 5"></textarea>
                   <input name="lottery-stock-mode" type="radio" value="pending" />
                   尚未到貨，配置數量先放待到貨
                 </label>
-              </fieldset>
+              </div>
               <div class="form-actions">
                 <button class="primary" type="submit">建立整套賞池</button>
                 <button class="secondary" id="fill-lottery-example" type="button">填入範例</button>
