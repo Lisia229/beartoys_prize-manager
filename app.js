@@ -179,17 +179,21 @@ function createCloudClient() {
 }
 
 function setCloudResult(message, type = "neutral") {
-  const box = $("#cloud-result");
-  if (!box) return;
-  box.textContent = message;
-  box.className = `result-box ${type}`;
+  ["#cloud-result", "#gate-cloud-result"].forEach((selector) => {
+    const box = $(selector);
+    if (!box) return;
+    box.textContent = message;
+    box.className = `result-box ${type}`;
+  });
 }
 
 function setAuthStatus(message, type = "neutral") {
-  const box = $("#auth-status");
-  if (!box) return;
-  box.textContent = message;
-  box.className = `result-box ${type}`;
+  ["#auth-status", "#gate-auth-status"].forEach((selector) => {
+    const box = $(selector);
+    if (!box) return;
+    box.textContent = message;
+    box.className = `result-box ${type}`;
+  });
 }
 
 function setStorageNote(message) {
@@ -198,16 +202,27 @@ function setStorageNote(message) {
 }
 
 function updateCloudUi() {
-  const urlInput = $("#cloud-url");
-  const keyInput = $("#cloud-key");
-  if (urlInput) urlInput.value = cloudSettings.url || "";
-  if (keyInput) keyInput.value = cloudSettings.anonKey || "";
+  ["#cloud-url", "#gate-cloud-url"].forEach((selector) => {
+    const input = $(selector);
+    if (input) input.value = cloudSettings.url || "";
+  });
+  ["#cloud-key", "#gate-cloud-key"].forEach((selector) => {
+    const input = $(selector);
+    if (input) input.value = cloudSettings.anonKey || "";
+  });
   setAuthStatus(cloudUser ? `已登入：${cloudUser.email || cloudUser.id}` : "尚未登入。", cloudUser ? "ok" : "neutral");
   setStorageNote(
     cloudClient && cloudUser
       ? "資料已啟用 Supabase 雲端同步，同時保留本機備份"
       : "展示版資料儲存在本機瀏覽器 localStorage"
   );
+  updateAccessGate();
+}
+
+function updateAccessGate() {
+  const unlocked = Boolean(cloudClient && cloudUser);
+  $("#auth-gate")?.classList.toggle("hidden", unlocked);
+  $("#app-shell")?.classList.toggle("hidden", !unlocked);
 }
 
 async function initCloudSync({ pullRemote = true } = {}) {
@@ -240,7 +255,10 @@ async function initCloudSync({ pullRemote = true } = {}) {
   const listener = cloudClient.auth.onAuthStateChange(async (_event, session) => {
     cloudUser = session?.user || null;
     updateCloudUi();
-    if (cloudUser) await pullCloudState({ quietIfEmpty: true });
+    if (cloudUser) {
+      const pulled = await pullCloudState({ quietIfEmpty: true });
+      if (!pulled) renderAll({ skipSave: true });
+    }
   });
   cloudAuthSubscription = listener.data.subscription;
 
@@ -256,7 +274,10 @@ async function initCloudSync({ pullRemote = true } = {}) {
   }
 
   const pulled = await pullCloudState({ quietIfEmpty: true });
-  if (!pulled) await pushCloudState({ quiet: true });
+  if (!pulled) {
+    await pushCloudState({ quiet: true });
+    renderAll({ skipSave: true });
+  }
   setCloudResult(pulled ? "已連線，並載入雲端資料。" : "已連線，並把目前本機資料建立到雲端。", "ok");
   updateCloudUi();
   return true;
@@ -322,6 +343,53 @@ function queueCloudSave() {
       setCloudResult(`自動同步失敗：${error.message}`, "error");
     });
   }, 500);
+}
+
+async function signInWithEmail(email, password) {
+  if (!cloudClient) await initCloudSync({ pullRemote: false });
+  if (!cloudClient) return;
+  const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    setAuthStatus(`登入失敗：${error.message}`, "error");
+    return;
+  }
+  cloudUser = data.user;
+  setAuthStatus(`已登入：${cloudUser.email}`, "ok");
+  const pulled = await pullCloudState({ quietIfEmpty: true });
+  if (!pulled) await pushCloudState({ quiet: true });
+  if (!pulled) renderAll({ skipSave: true });
+  updateCloudUi();
+}
+
+async function signUpWithEmail(email, password) {
+  if (!cloudClient) await initCloudSync({ pullRemote: false });
+  if (!cloudClient) return;
+  const { data, error } = await cloudClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: authRedirectUrl()
+    }
+  });
+  if (error) {
+    setAuthStatus(`建立帳號失敗：${error.message}`, "error");
+    return;
+  }
+  cloudUser = data.session?.user || null;
+  setAuthStatus(data.session ? `已建立並登入：${email}` : "帳號已建立，請到信箱確認後再登入。", data.session ? "ok" : "neutral");
+  if (data.session) {
+    await pushCloudState({ quiet: true });
+    renderAll({ skipSave: true });
+  }
+  updateCloudUi();
+}
+
+async function signOut() {
+  if (!cloudClient) return;
+  await cloudClient.auth.signOut();
+  cloudUser = null;
+  setAuthStatus("已登出。", "neutral");
+  updateCloudUi();
 }
 
 function activityName(id) {
@@ -1048,6 +1116,16 @@ function bindEvents() {
     await initCloudSync();
   });
   $("#auth-form").addEventListener("submit", (event) => event.preventDefault());
+  $("#gate-cloud-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    saveCloudSettings({
+      url: $("#gate-cloud-url").value.trim(),
+      anonKey: $("#gate-cloud-key").value.trim()
+    });
+    setCloudResult("設定已儲存，正在讀取登入狀態...", "neutral");
+    await initCloudSync();
+  });
+  $("#gate-auth-form").addEventListener("submit", (event) => event.preventDefault());
 
   $("#order-activity").addEventListener("change", renderSelects);
   $("#receipt-activity").addEventListener("change", renderSelects);
@@ -1190,51 +1268,19 @@ function bindEvents() {
     setCloudResult("已停用雲端同步。", "neutral");
   });
   $("#auth-login").addEventListener("click", async () => {
-    if (!cloudClient) await initCloudSync({ pullRemote: false });
-    if (!cloudClient) return;
-    const email = $("#auth-email").value.trim();
-    const password = $("#auth-password").value;
-    const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
-    if (error) {
-      setAuthStatus(`登入失敗：${error.message}`, "error");
-      return;
-    }
-    cloudUser = data.user;
-    setAuthStatus(`已登入：${cloudUser.email}`, "ok");
-    await pullCloudState({ quietIfEmpty: true });
-    await pushCloudState({ quiet: true });
-    updateCloudUi();
+    await signInWithEmail($("#auth-email").value.trim(), $("#auth-password").value);
   });
   $("#auth-signup").addEventListener("click", async () => {
-    if (!cloudClient) await initCloudSync({ pullRemote: false });
-    if (!cloudClient) return;
-    const email = $("#auth-email").value.trim();
-    const password = $("#auth-password").value;
-    const { data, error } = await cloudClient.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: authRedirectUrl()
-      }
-    });
-    if (error) {
-      setAuthStatus(`建立帳號失敗：${error.message}`, "error");
-      return;
-    }
-    cloudUser = data.session?.user || null;
-    setAuthStatus(data.session ? `已建立並登入：${email}` : "帳號已建立，請到信箱確認後再登入。", data.session ? "ok" : "neutral");
-    if (data.session) await pushCloudState({ quiet: true });
-    updateCloudUi();
+    await signUpWithEmail($("#auth-email").value.trim(), $("#auth-password").value);
   });
   $("#auth-logout").addEventListener("click", async () => {
-    if (!cloudClient) return;
-    await cloudClient.auth.signOut();
-    cloudUser = null;
-    setAuthStatus("已登出。", "neutral");
-    updateCloudUi();
+    await signOut();
+  });
+  $("#gate-auth-login").addEventListener("click", async () => {
+    await signInWithEmail($("#gate-auth-email").value.trim(), $("#gate-auth-password").value);
   });
 }
 
 bindEvents();
-renderAll();
 initCloudSync();
+updateCloudUi();
