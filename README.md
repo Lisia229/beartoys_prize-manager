@@ -36,41 +36,58 @@
 - 自動備份
 - 抽賞平台事件串接
 
-## Supabase 雲端同步試用
+## Supabase 正式雲端同步
 
-目前已加入 Supabase 試用同步模式。這個版本先把整份資料存成 Supabase `app_state` 表中的一筆 JSON，方便快速測試跨裝置同步。
+目前已加入 Supabase Auth + RLS 雲端同步。這個版本先把整份資料存成 Supabase `app_state` 表中的一筆 JSON，並綁定登入者 `auth.uid()`。未登入者不能讀寫，其他帳號也不能讀寫你的資料。
 
 在 Supabase SQL Editor 執行：
 
 ```sql
 create table if not exists public.app_state (
-  id text primary key,
+  user_id uuid primary key references auth.users(id) on delete cascade,
   data jsonb not null,
   updated_at timestamptz not null default now()
 );
 
 alter table public.app_state enable row level security;
 
-create policy "trial read app state"
+revoke all on table public.app_state from anon, authenticated;
+grant select, insert, update, delete on table public.app_state to authenticated;
+
+drop policy if exists "Users can read own app state" on public.app_state;
+drop policy if exists "Users can create own app state" on public.app_state;
+drop policy if exists "Users can update own app state" on public.app_state;
+drop policy if exists "Users can delete own app state" on public.app_state;
+
+create policy "Users can read own app state"
 on public.app_state for select
-to anon
-using (true);
+to authenticated
+using ((select auth.uid()) = user_id);
 
-create policy "trial insert app state"
+create policy "Users can create own app state"
 on public.app_state for insert
-to anon
-with check (true);
+to authenticated
+with check ((select auth.uid()) = user_id);
 
-create policy "trial update app state"
+create policy "Users can update own app state"
 on public.app_state for update
-to anon
-using (true)
-with check (true);
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+create policy "Users can delete own app state"
+on public.app_state for delete
+to authenticated
+using ((select auth.uid()) = user_id);
 ```
 
 然後到網站的「雲端同步」分頁輸入：
 
 - Supabase URL
 - Supabase anon key
+- Email
+- 密碼
 
-注意：這是方便試用的公開讀寫設定。正式營運前應改成登入後才能讀寫自己的資料，並重新設計 RLS 權限。
+登入後按「上傳本機資料」即可把目前資料送上雲端。之後資料變更會自動同步，並同時保留本機備份。
+
+注意：這是單帳號正式版。若未來要多人共同管理、角色權限或平台 API 串接，建議再拆成 `activities`、`items`、`orders`、`order_lines`、`receipts`、`shipments`、`disputes` 等關聯式資料表。

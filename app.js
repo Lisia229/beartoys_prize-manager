@@ -1,6 +1,5 @@
 const STORAGE_KEY = "beartoys-prize-manager-v1";
 const CLOUD_CONFIG_KEY = "beartoys-prize-manager-cloud-config-v1";
-const CLOUD_ROW_ID = "default";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -16,6 +15,8 @@ const moneyless = (value) => Number(value || 0).toLocaleString("zh-Hant-TW");
 let cloudClient = null;
 let cloudSaveTimer = null;
 let cloudSettings = loadCloudSettings();
+let cloudUser = null;
+let cloudAuthSubscription = null;
 let state = loadState();
 
 function seedState() {
@@ -165,6 +166,13 @@ function setCloudResult(message, type = "neutral") {
   box.className = `result-box ${type}`;
 }
 
+function setAuthStatus(message, type = "neutral") {
+  const box = $("#auth-status");
+  if (!box) return;
+  box.textContent = message;
+  box.className = `result-box ${type}`;
+}
+
 function setStorageNote(message) {
   const note = $("#storage-note");
   if (note) note.textContent = message;
@@ -175,8 +183,9 @@ function updateCloudUi() {
   const keyInput = $("#cloud-key");
   if (urlInput) urlInput.value = cloudSettings.url || "";
   if (keyInput) keyInput.value = cloudSettings.anonKey || "";
+  setAuthStatus(cloudUser ? `已登入：${cloudUser.email || cloudUser.id}` : "尚未登入。", cloudUser ? "ok" : "neutral");
   setStorageNote(
-    cloudClient
+    cloudClient && cloudUser
       ? "資料已啟用 Supabase 雲端同步，同時保留本機備份"
       : "展示版資料儲存在本機瀏覽器 localStorage"
   );
@@ -196,6 +205,32 @@ async function initCloudSync({ pullRemote = true } = {}) {
     return false;
   }
 
+  if (cloudAuthSubscription) {
+    cloudAuthSubscription.unsubscribe();
+    cloudAuthSubscription = null;
+  }
+
+  const sessionResult = await cloudClient.auth.getSession();
+  if (sessionResult.error) {
+    setCloudResult(`讀取登入狀態失敗：${sessionResult.error.message}`, "error");
+    updateCloudUi();
+    return false;
+  }
+
+  cloudUser = sessionResult.data.session?.user || null;
+  const listener = cloudClient.auth.onAuthStateChange(async (_event, session) => {
+    cloudUser = session?.user || null;
+    updateCloudUi();
+    if (cloudUser) await pullCloudState({ quietIfEmpty: true });
+  });
+  cloudAuthSubscription = listener.data.subscription;
+
+  if (!cloudUser) {
+    setCloudResult("已儲存 Supabase 設定。請先登入，登入後才會同步資料。", "neutral");
+    updateCloudUi();
+    return true;
+  }
+
   if (!pullRemote) {
     updateCloudUi();
     return true;
@@ -210,15 +245,15 @@ async function initCloudSync({ pullRemote = true } = {}) {
 
 async function pullCloudState({ quietIfEmpty = false } = {}) {
   if (!cloudClient) cloudClient = createCloudClient();
-  if (!cloudClient) {
-    setCloudResult("尚未設定 Supabase 連線。", "error");
+  if (!cloudClient || !cloudUser) {
+    setCloudResult("尚未連線或尚未登入。", "error");
     return false;
   }
 
   const { data, error } = await cloudClient
     .from("app_state")
     .select("data, updated_at")
-    .eq("id", CLOUD_ROW_ID)
+    .eq("user_id", cloudUser.id)
     .maybeSingle();
 
   if (error) {
@@ -240,13 +275,13 @@ async function pullCloudState({ quietIfEmpty = false } = {}) {
 
 async function pushCloudState({ quiet = false } = {}) {
   if (!cloudClient) cloudClient = createCloudClient();
-  if (!cloudClient) {
-    if (!quiet) setCloudResult("尚未設定 Supabase 連線。", "error");
+  if (!cloudClient || !cloudUser) {
+    if (!quiet) setCloudResult("尚未連線或尚未登入。", "error");
     return false;
   }
 
   const { error } = await cloudClient.from("app_state").upsert({
-    id: CLOUD_ROW_ID,
+    user_id: cloudUser.id,
     data: state,
     updated_at: now()
   });
@@ -261,7 +296,7 @@ async function pushCloudState({ quiet = false } = {}) {
 }
 
 function queueCloudSave() {
-  if (!cloudClient) return;
+  if (!cloudClient || !cloudUser) return;
   window.clearTimeout(cloudSaveTimer);
   cloudSaveTimer = window.setTimeout(() => {
     pushCloudState({ quiet: true }).catch((error) => {
@@ -911,9 +946,10 @@ function bindEvents() {
       url: $("#cloud-url").value.trim(),
       anonKey: $("#cloud-key").value.trim()
     });
-    setCloudResult("連線中...", "neutral");
+    setCloudResult("設定已儲存，正在讀取登入狀態...", "neutral");
     await initCloudSync();
   });
+  $("#auth-form").addEventListener("submit", (event) => event.preventDefault());
 
   $("#order-activity").addEventListener("change", renderSelects);
   $("#receipt-activity").addEventListener("change", renderSelects);
@@ -1044,9 +1080,52 @@ function bindEvents() {
     if (!confirm("停用後只會使用本機 localStorage，雲端資料不會被刪除。確定停用？")) return;
     localStorage.removeItem(CLOUD_CONFIG_KEY);
     cloudSettings = { url: "", anonKey: "" };
+    cloudUser = null;
+    if (cloudAuthSubscription) {
+      cloudAuthSubscription.unsubscribe();
+      cloudAuthSubscription = null;
+    }
     cloudClient = null;
     updateCloudUi();
     setCloudResult("已停用雲端同步。", "neutral");
+  });
+  $("#auth-login").addEventListener("click", async () => {
+    if (!cloudClient) await initCloudSync({ pullRemote: false });
+    if (!cloudClient) return;
+    const email = $("#auth-email").value.trim();
+    const password = $("#auth-password").value;
+    const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthStatus(`登入失敗：${error.message}`, "error");
+      return;
+    }
+    cloudUser = data.user;
+    setAuthStatus(`已登入：${cloudUser.email}`, "ok");
+    await pullCloudState({ quietIfEmpty: true });
+    await pushCloudState({ quiet: true });
+    updateCloudUi();
+  });
+  $("#auth-signup").addEventListener("click", async () => {
+    if (!cloudClient) await initCloudSync({ pullRemote: false });
+    if (!cloudClient) return;
+    const email = $("#auth-email").value.trim();
+    const password = $("#auth-password").value;
+    const { data, error } = await cloudClient.auth.signUp({ email, password });
+    if (error) {
+      setAuthStatus(`建立帳號失敗：${error.message}`, "error");
+      return;
+    }
+    cloudUser = data.session?.user || null;
+    setAuthStatus(data.session ? `已建立並登入：${email}` : "帳號已建立，請到信箱確認後再登入。", data.session ? "ok" : "neutral");
+    if (data.session) await pushCloudState({ quiet: true });
+    updateCloudUi();
+  });
+  $("#auth-logout").addEventListener("click", async () => {
+    if (!cloudClient) return;
+    await cloudClient.auth.signOut();
+    cloudUser = null;
+    setAuthStatus("已登出。", "neutral");
+    updateCloudUi();
   });
 }
 

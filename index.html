@@ -332,7 +332,7 @@
           <div class="section-heading">
             <div>
               <h2>Supabase 雲端同步</h2>
-              <p>試用版會把整份管理資料同步到 Supabase 的一筆 JSON 紀錄，方便跨裝置使用。</p>
+              <p>正式版需要先登入 Supabase Auth，資料會綁定登入帳號並由 RLS 權限保護。</p>
             </div>
           </div>
 
@@ -348,7 +348,7 @@
                 <input id="cloud-key" type="password" placeholder="只貼 anon public key，不要貼 service_role" />
               </label>
               <div class="form-actions">
-                <button class="primary" type="submit">儲存並連線</button>
+                <button class="primary" type="submit">儲存設定</button>
                 <button class="secondary" id="pull-cloud" type="button">從雲端下載</button>
                 <button class="secondary" id="push-cloud" type="button">上傳本機資料</button>
                 <button class="danger" id="disable-cloud" type="button">停用雲端</button>
@@ -356,32 +356,69 @@
               <div class="result-box" id="cloud-result">尚未設定雲端同步。</div>
             </form>
 
+            <form class="panel" id="auth-form">
+              <h3>登入</h3>
+              <label>
+                Email
+                <input id="auth-email" type="email" autocomplete="email" />
+              </label>
+              <label>
+                密碼
+                <input id="auth-password" type="password" autocomplete="current-password" />
+              </label>
+              <div class="form-actions">
+                <button class="primary" id="auth-login" type="button">登入</button>
+                <button class="secondary" id="auth-signup" type="button">建立帳號</button>
+                <button class="secondary" id="auth-logout" type="button">登出</button>
+              </div>
+              <div class="result-box" id="auth-status">尚未登入。</div>
+            </form>
+          </div>
+
+          <div class="two-column">
             <section class="panel">
               <h3>Supabase SQL</h3>
-              <p class="help">在 Supabase SQL Editor 先執行這段。這是試用設定，任何拿到 anon key 的人都能讀寫這筆資料；正式版要改成登入和權限控管。</p>
+              <p class="help">在 Supabase SQL Editor 執行一次。這份 SQL 會啟用 RLS，只有登入者可以讀寫自己的資料。</p>
               <pre class="code-block"><code>create table if not exists public.app_state (
-  id text primary key,
+  user_id uuid primary key references auth.users(id) on delete cascade,
   data jsonb not null,
   updated_at timestamptz not null default now()
 );
 
 alter table public.app_state enable row level security;
 
-create policy "trial read app state"
+revoke all on table public.app_state from anon, authenticated;
+grant select, insert, update, delete on table public.app_state to authenticated;
+
+drop policy if exists "Users can read own app state" on public.app_state;
+drop policy if exists "Users can create own app state" on public.app_state;
+drop policy if exists "Users can update own app state" on public.app_state;
+drop policy if exists "Users can delete own app state" on public.app_state;
+
+create policy "Users can read own app state"
 on public.app_state for select
-to anon
-using (true);
+to authenticated
+using ((select auth.uid()) = user_id);
 
-create policy "trial insert app state"
+create policy "Users can create own app state"
 on public.app_state for insert
-to anon
-with check (true);
+to authenticated
+with check ((select auth.uid()) = user_id);
 
-create policy "trial update app state"
+create policy "Users can update own app state"
 on public.app_state for update
-to anon
-using (true)
-with check (true);</code></pre>
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+create policy "Users can delete own app state"
+on public.app_state for delete
+to authenticated
+using ((select auth.uid()) = user_id);</code></pre>
+            </section>
+            <section class="panel">
+              <h3>正式版說明</h3>
+              <p class="help">目前是單帳號正式雲端版：登入後跨裝置同步，RLS 會阻擋未登入或其他帳號讀寫。下一階段若要多人協作、員工權限或平台串接，建議再拆成 orders、items、shipments 等關聯式資料表。</p>
             </section>
           </div>
         </section>
