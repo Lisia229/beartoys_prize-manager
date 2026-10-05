@@ -386,13 +386,30 @@ label {
   align-self: center;
   color: $ink;
 
-  input[type="checkbox"] {
+  input[type="checkbox"],
+  input[type="radio"] {
     width: 18px;
     height: 18px;
     min-height: 18px;
     flex: 0 0 18px;
     padding: 0;
     accent-color: $brand;
+  }
+}
+
+.radio-group {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid $line;
+  border-radius: 8px;
+  padding: 12px;
+
+  legend {
+    padding: 0 4px;
+    color: $muted;
+    font-size: 13px;
+    font-weight: 700;
   }
 }
 

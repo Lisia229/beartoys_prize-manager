@@ -1040,7 +1040,7 @@ function handleLotterySubmit(event) {
   }
 
   const activityId = uid();
-  const asPending = $("#lottery-as-pending").checked;
+  const asPending = document.querySelector('input[name="lottery-stock-mode"]:checked')?.value === "pending";
   state.activities.push({
     id: activityId,
     name: activityNameValue,
@@ -1062,8 +1062,8 @@ function handleLotterySubmit(event) {
     });
   });
   event.target.reset();
-  $("#lottery-as-pending").checked = true;
-  resultBox.textContent = `已建立「${activityNameValue}」與 ${items.length} 個品項。`;
+  document.querySelector('input[name="lottery-stock-mode"][value="stock"]').checked = true;
+  resultBox.textContent = `已建立「${activityNameValue}」與 ${items.length} 個品項，配置數量已${asPending ? "放入待到貨" : "列入可用庫存"}。`;
   resultBox.className = "result-box ok";
   renderAll();
 }
@@ -1370,6 +1370,7 @@ function bindEvents() {
     $("#lottery-activity-name").value = "死神一番賞第 1 彈";
     $("#lottery-total").value = 80;
     $("#lottery-lines").value = ["A賞 一護模型 2", "B賞 劍八模型 3", "C賞 夜一模型 5", "D賞 代理證模型 10", "E賞 壓克力立牌 20", "F賞 小卡 40"].join("\n");
+    document.querySelector('input[name="lottery-stock-mode"][value="stock"]').checked = true;
     $("#lottery-result").textContent = "範例已填入，可直接改成你的實際配置。";
     $("#lottery-result").className = "result-box neutral";
   });

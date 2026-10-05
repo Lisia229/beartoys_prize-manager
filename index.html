@@ -533,10 +533,17 @@ A賞 一護模型 2
 B賞 劍八模型 3
 C賞 夜一模型 5"></textarea>
               </label>
-              <label class="checkbox-label">
-                <input id="lottery-as-pending" type="checkbox" checked />
-                配置數量先放待到貨
-              </label>
+              <fieldset class="radio-group">
+                <legend>這套賞池目前狀態</legend>
+                <label class="checkbox-label">
+                  <input name="lottery-stock-mode" type="radio" value="stock" checked />
+                  已經到貨，配置數量直接列入可用庫存
+                </label>
+                <label class="checkbox-label">
+                  <input name="lottery-stock-mode" type="radio" value="pending" />
+                  尚未到貨，配置數量先放待到貨
+                </label>
+              </fieldset>
               <div class="form-actions">
                 <button class="primary" type="submit">建立整套賞池</button>
                 <button class="secondary" id="fill-lottery-example" type="button">填入範例</button>
