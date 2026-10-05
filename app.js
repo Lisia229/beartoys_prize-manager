@@ -574,6 +574,7 @@ function renderSelects() {
       label: `${line.customerName} ${line.memberCode}｜${activityName(line.activityId)}｜${itemName(line.itemId)}｜未出貨 ${line.orderedQty - line.cancelledQty - line.shippedQty}`
     }));
   setOptions($("#shipment-order"), shippable, "請選擇訂單");
+  setOptions($("#cancel-order"), shippable, "請選擇訂單");
 
   const orderOptions = state.orders.map((order) => ({
     value: order.id,
@@ -914,9 +915,32 @@ function shipOrder(orderId, qty, note) {
   return { ok: true };
 }
 
+function cancelOrderLine(orderId, qty, note) {
+  const { order, line } = findOrderLine(orderId);
+  if (!order || !line) return { ok: false, message: "找不到訂單。" };
+  const cancellable = Math.max(line.orderedQty - line.cancelledQty - line.shippedQty, 0);
+  if (qty > cancellable) return { ok: false, message: `可取消數量只有 ${cancellable}。` };
+  const before = line.cancelledQty;
+  line.cancelledQty += qty;
+  order.updatedAt = now();
+  addHistory(orderId, line.id, "cancel", before, line.cancelledQty, note);
+  return { ok: true };
+}
+
 function handleShipmentSubmit(event) {
   event.preventDefault();
   const result = shipOrder($("#shipment-order").value, toInt($("#shipment-qty").value), $("#shipment-note").value.trim());
+  if (!result.ok) {
+    alert(result.message);
+    return;
+  }
+  event.target.reset();
+  renderAll();
+}
+
+function handleCancelSubmit(event) {
+  event.preventDefault();
+  const result = cancelOrderLine($("#cancel-order").value, toInt($("#cancel-qty").value), $("#cancel-note").value.trim());
   if (!result.ok) {
     alert(result.message);
     return;
@@ -935,15 +959,11 @@ function handleLineActionSubmit(event) {
   if (!order || !line || qty < 1) return;
 
   if (type === "cancel") {
-    const cancellable = Math.max(line.orderedQty - line.cancelledQty - line.shippedQty, 0);
-    if (qty > cancellable) {
-      alert(`可取消數量只有 ${cancellable}。`);
+    const result = cancelOrderLine(orderId, qty, note);
+    if (!result.ok) {
+      alert(result.message);
       return;
     }
-    const before = line.cancelledQty;
-    line.cancelledQty += qty;
-    order.updatedAt = now();
-    addHistory(orderId, line.id, "cancel", before, line.cancelledQty, note);
   }
 
   if (type === "ship") {
@@ -1324,6 +1344,7 @@ function bindEvents() {
 
   $("#order-form").addEventListener("submit", handleOrderSubmit);
   $("#receipt-form").addEventListener("submit", handleReceiptSubmit);
+  $("#cancel-form").addEventListener("submit", handleCancelSubmit);
   $("#shipment-form").addEventListener("submit", handleShipmentSubmit);
   $("#line-action-form").addEventListener("submit", handleLineActionSubmit);
   $("#dispute-form").addEventListener("submit", handleDisputeSubmit);

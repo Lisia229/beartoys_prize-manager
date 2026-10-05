@@ -212,11 +212,11 @@
           <div class="section-heading">
             <div>
               <h2>收貨出貨</h2>
-              <p>收到商品就登記收貨；寄給客人就登記出貨。出貨會同時更新訂單與庫存。</p>
+              <p>收到商品就登記收貨；客人取消或出貨都在這裡處理。取消會降低有效需求，出貨會扣庫存。</p>
             </div>
           </div>
 
-          <div class="two-column">
+          <div class="panel-grid">
             <form class="panel" id="receipt-form">
               <h3>新增收貨</h3>
               <label>
@@ -236,6 +236,23 @@
                 <input id="receipt-note" placeholder="例：第一批到貨" />
               </label>
               <button class="primary" type="submit">新增收貨</button>
+            </form>
+
+            <form class="panel" id="cancel-form">
+              <h3>登記取消</h3>
+              <label>
+                訂單
+                <select id="cancel-order" required></select>
+              </label>
+              <label>
+                本次取消數量
+                <input id="cancel-qty" type="number" min="1" step="1" required />
+              </label>
+              <label>
+                備註
+                <input id="cancel-note" placeholder="例：客人取消、改單" />
+              </label>
+              <button class="secondary" type="submit">登記取消</button>
             </form>
 
             <form class="panel" id="shipment-form">
