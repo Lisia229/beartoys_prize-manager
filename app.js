@@ -11,6 +11,7 @@ const uid = () =>
 const toInt = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
 const signedInt = (value) => Number.parseInt(value, 10) || 0;
 const moneyless = (value) => Number(value || 0).toLocaleString("zh-Hant-TW");
+const authRedirectUrl = () => window.location.href.split("#")[0];
 
 let cloudClient = null;
 let cloudSaveTimer = null;
@@ -1110,7 +1111,13 @@ function bindEvents() {
     if (!cloudClient) return;
     const email = $("#auth-email").value.trim();
     const password = $("#auth-password").value;
-    const { data, error } = await cloudClient.auth.signUp({ email, password });
+    const { data, error } = await cloudClient.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: authRedirectUrl()
+      }
+    });
     if (error) {
       setAuthStatus(`建立帳號失敗：${error.message}`, "error");
       return;
