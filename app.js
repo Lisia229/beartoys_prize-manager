@@ -29,8 +29,16 @@ function seedState() {
   const orderA = uid();
   const orderB = uid();
   const orderC = uid();
+  const sourceLine = uid();
+  const sourcePlatformA = uid();
+  const sourcePlatformB = uid();
 
   return {
+    sources: [
+      { id: sourceLine, name: "LINE 群組", note: "手動群組訂單", createdAt: now(), updatedAt: now() },
+      { id: sourcePlatformA, name: "線上平台 A", note: "", createdAt: now(), updatedAt: now() },
+      { id: sourcePlatformB, name: "線上平台 B", note: "", createdAt: now(), updatedAt: now() }
+    ],
     activities: [
       { id: activityA, name: "十月一番賞", note: "展示範例", createdAt: now(), updatedAt: now() },
       { id: activityB, name: "週年抽賞池", note: "", createdAt: now(), updatedAt: now() }
@@ -75,6 +83,7 @@ function seedState() {
         id: orderA,
         customerName: "王小美",
         memberCode: "BT001",
+        sourceId: sourceLine,
         note: "",
         lines: [{ id: uid(), activityId: activityA, itemId: itemA, orderedQty: 100, cancelledQty: 10, shippedQty: 30 }],
         createdAt: now(),
@@ -84,6 +93,7 @@ function seedState() {
         id: orderB,
         customerName: "陳先生",
         memberCode: "BT002",
+        sourceId: sourcePlatformA,
         note: "",
         lines: [{ id: uid(), activityId: activityA, itemId: itemB, orderedQty: 6, cancelledQty: 0, shippedQty: 2 }],
         createdAt: now(),
@@ -93,6 +103,7 @@ function seedState() {
         id: orderC,
         customerName: "王小美",
         memberCode: "BT999",
+        sourceId: sourcePlatformB,
         note: "同名不同會員代號，用來展示姓名提示",
         lines: [{ id: uid(), activityId: activityB, itemId: itemC, orderedQty: 5, cancelledQty: 0, shippedQty: 0 }],
         createdAt: now(),
@@ -125,10 +136,17 @@ function loadState() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) return seedState();
   try {
-    return { ...seedState(), ...JSON.parse(stored) };
+    return normalizeState({ ...seedState(), ...JSON.parse(stored) });
   } catch {
     return seedState();
   }
+}
+
+function normalizeState(nextState) {
+  const base = seedState();
+  const normalized = { ...base, ...nextState };
+  if (!Array.isArray(normalized.sources) || normalized.sources.length === 0) normalized.sources = base.sources;
+  return normalized;
 }
 
 function saveState() {
@@ -267,7 +285,7 @@ async function pullCloudState({ quietIfEmpty = false } = {}) {
     return false;
   }
 
-  state = { ...seedState(), ...data.data };
+  state = normalizeState({ ...seedState(), ...data.data });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   renderAll({ skipSave: true });
   setCloudResult(`已從雲端下載資料。最後更新：${data.updated_at || "未知"}`, "ok");
@@ -310,6 +328,14 @@ function activityName(id) {
   return state.activities.find((activity) => activity.id === id)?.name || "未設定活動";
 }
 
+function sourceName(id) {
+  return state.sources?.find((source) => source.id === id)?.name || "未分類";
+}
+
+function sourceOptions() {
+  return (state.sources || []).map((source) => ({ value: source.id, label: source.name }));
+}
+
 function itemName(id) {
   return state.items.find((item) => item.id === id)?.name || "未設定品項";
 }
@@ -320,7 +346,13 @@ function itemById(id) {
 
 function allLines() {
   return state.orders.flatMap((order) =>
-    order.lines.map((line) => ({ ...line, orderId: order.id, customerName: order.customerName, memberCode: order.memberCode }))
+    order.lines.map((line) => ({
+      ...line,
+      orderId: order.id,
+      customerName: order.customerName,
+      memberCode: order.memberCode,
+      sourceId: order.sourceId || ""
+    }))
   );
 }
 
@@ -401,6 +433,17 @@ function renderSelects() {
   setOptions($("#order-item"), itemOptions($("#order-activity").value), "請選擇品項");
   setOptions($("#receipt-item"), itemOptions($("#receipt-activity").value), "請選擇品項");
 
+  ["#order-source", "#import-source"].forEach((selector) => {
+    const selected = $(selector)?.value || "";
+    setOptions($(selector), sourceOptions(), "未分類");
+    $(selector).value = selected;
+  });
+
+  const sourceFilter = $("#order-source-filter");
+  const sourceFilterSelected = sourceFilter?.value || "";
+  setOptions(sourceFilter, sourceOptions(), "全部來源");
+  sourceFilter.value = sourceFilterSelected;
+
   const shippable = allLines()
     .filter((line) => Math.max(line.orderedQty - line.cancelledQty - line.shippedQty, 0) > 0)
     .map((line) => ({
@@ -474,11 +517,13 @@ function renderDashboard() {
 function renderOrders() {
   const search = $("#order-search").value.trim().toLowerCase();
   const statusFilter = $("#order-status-filter").value;
+  const sourceFilter = $("#order-source-filter").value;
   const rows = allLines()
     .map((line) => ({ ...line, status: lineStatus(line) }))
     .filter((line) => statusFilter === "all" || line.status.key === statusFilter)
+    .filter((line) => !sourceFilter || line.sourceId === sourceFilter)
     .filter((line) => {
-      const text = `${line.customerName} ${line.memberCode} ${activityName(line.activityId)} ${itemName(line.itemId)}`.toLowerCase();
+      const text = `${line.customerName} ${line.memberCode} ${sourceName(line.sourceId)} ${activityName(line.activityId)} ${itemName(line.itemId)}`.toLowerCase();
       return !search || text.includes(search);
     })
     .sort((a, b) => b.orderId.localeCompare(a.orderId));
@@ -492,6 +537,7 @@ function renderOrders() {
           <td><span class="badge ${line.status.className}">${line.status.text}</span></td>
           <td>${escapeHtml(line.customerName)}</td>
           <td>${escapeHtml(line.memberCode)}</td>
+          <td>${escapeHtml(sourceName(line.sourceId))}</td>
           <td>${escapeHtml(activityName(line.activityId))}</td>
           <td>${escapeHtml(itemName(line.itemId))}</td>
           <td>${moneyless(line.orderedQty)}</td>
@@ -507,7 +553,7 @@ function renderOrders() {
           </td>
         </tr>`;
       })
-      .join("") || `<tr><td colspan="10">目前沒有訂單。</td></tr>`;
+      .join("") || `<tr><td colspan="11">目前沒有訂單。</td></tr>`;
 }
 
 function renderInventory() {
@@ -571,6 +617,19 @@ function renderItems() {
       .join("") || `<tr><td colspan="7">尚未建立品項。</td></tr>`;
 }
 
+function renderSources() {
+  $("#sources-table").innerHTML =
+    (state.sources || [])
+      .map(
+        (source) => `<tr>
+          <td>${escapeHtml(source.name)}</td>
+          <td>${escapeHtml(source.note || "")}</td>
+          <td>${escapeHtml((source.createdAt || "").slice(0, 10))}</td>
+        </tr>`
+      )
+      .join("") || `<tr><td colspan="3">尚未建立訂單來源。</td></tr>`;
+}
+
 function renderAll(options = {}) {
   if (!options.skipSave) saveState();
   renderSelects();
@@ -579,6 +638,7 @@ function renderAll(options = {}) {
   renderInventory();
   renderDisputes();
   renderItems();
+  renderSources();
   updateCloudUi();
 }
 
@@ -630,6 +690,7 @@ function handleOrderSubmit(event) {
     memberCode: $("#order-member").value.trim(),
     activityId: $("#order-activity").value,
     itemId: $("#order-item").value,
+    sourceId: $("#order-source").value,
     orderedQty: toInt($("#order-qty").value),
     note: $("#order-note").value.trim()
   };
@@ -640,6 +701,7 @@ function handleOrderSubmit(event) {
     const before = JSON.stringify({ order, line });
     order.customerName = payload.customerName;
     order.memberCode = payload.memberCode;
+    order.sourceId = payload.sourceId;
     order.note = payload.note;
     order.updatedAt = now();
     line.activityId = payload.activityId;
@@ -656,6 +718,7 @@ function handleOrderSubmit(event) {
       id,
       customerName: payload.customerName,
       memberCode: payload.memberCode,
+      sourceId: payload.sourceId,
       note: payload.note,
       lines: [
         {
@@ -814,6 +877,26 @@ function handleItemSubmit(event) {
   renderAll();
 }
 
+function handleSourceSubmit(event) {
+  event.preventDefault();
+  const name = $("#source-name").value.trim();
+  if (!name) return;
+  const existing = state.sources.find((source) => source.name === name);
+  if (existing) {
+    alert("這個來源名稱已經存在。");
+    return;
+  }
+  state.sources.push({
+    id: uid(),
+    name,
+    note: $("#source-note").value.trim(),
+    createdAt: now(),
+    updatedAt: now()
+  });
+  event.target.reset();
+  renderAll();
+}
+
 function parseCsv(text) {
   const rows = [];
   let current = [];
@@ -845,7 +928,7 @@ function parseCsv(text) {
   return rows.filter((row) => row.some((cell) => cell.trim()));
 }
 
-function importOrdersCsv(text) {
+function importOrdersCsv(text, defaultSourceId = "") {
   const rows = parseCsv(text);
   const headers = rows.shift().map((header) => header.trim());
   const result = { added: 0, warnings: [] };
@@ -853,6 +936,7 @@ function importOrdersCsv(text) {
     const record = Object.fromEntries(headers.map((header, cellIndex) => [header, row[cellIndex]?.trim() || ""]));
     const activity = state.activities.find((entry) => entry.name === record.activityName);
     const item = state.items.find((entry) => entry.activityId === activity?.id && entry.name === record.itemName);
+    const source = state.sources.find((entry) => entry.name === record.sourceName);
     const quantity = toInt(record.quantity);
     if (!record.customerName || !record.memberCode || !activity || !item || quantity < 1) {
       result.warnings.push(`第 ${index + 2} 列略過：資料不完整、活動/品項不存在或數量錯誤。`);
@@ -861,12 +945,14 @@ function importOrdersCsv(text) {
     const warnings = activeDisputeWarnings(record.customerName, record.memberCode);
     if (warnings.exact.length) result.warnings.push(`第 ${index + 2} 列：會員 ${record.memberCode} 有爭議紀錄。`);
     if (warnings.possible.length) result.warnings.push(`第 ${index + 2} 列：姓名 ${record.customerName} 可能為同一人，請確認。`);
+    if (record.sourceName && !source) result.warnings.push(`第 ${index + 2} 列：找不到來源「${record.sourceName}」，已使用匯入預設來源。`);
     const orderId = uid();
     const lineId = uid();
     state.orders.push({
       id: orderId,
       customerName: record.customerName,
       memberCode: record.memberCode,
+      sourceId: source?.id || defaultSourceId,
       note: record.note || "",
       lines: [{ id: lineId, activityId: activity.id, itemId: item.id, orderedQty: quantity, cancelledQty: 0, shippedQty: 0 }],
       createdAt: now(),
@@ -914,10 +1000,20 @@ function exportInventory() {
 }
 
 function exportOrders() {
-  const headers = ["customerName", "memberCode", "activityName", "itemName", "orderedQty", "cancelledQty", "shippedQty", "note"];
+  const headers = ["customerName", "memberCode", "sourceName", "activityName", "itemName", "orderedQty", "cancelledQty", "shippedQty", "note"];
   const lines = allLines().map((line) => {
     const order = state.orders.find((entry) => entry.id === line.orderId);
-    return [line.customerName, line.memberCode, activityName(line.activityId), itemName(line.itemId), line.orderedQty, line.cancelledQty, line.shippedQty, order?.note || ""]
+    return [
+      line.customerName,
+      line.memberCode,
+      sourceName(line.sourceId),
+      activityName(line.activityId),
+      itemName(line.itemId),
+      line.orderedQty,
+      line.cancelledQty,
+      line.shippedQty,
+      order?.note || ""
+    ]
       .map(csvEscape)
       .join(",");
   });
@@ -941,6 +1037,7 @@ function bindEvents() {
   $("#dispute-form").addEventListener("submit", handleDisputeSubmit);
   $("#activity-form").addEventListener("submit", handleActivitySubmit);
   $("#item-form").addEventListener("submit", handleItemSubmit);
+  $("#source-form").addEventListener("submit", handleSourceSubmit);
   $("#cloud-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     saveCloudSettings({
@@ -960,7 +1057,7 @@ function bindEvents() {
   ["#dashboard-activity-filter", "#dashboard-status-filter", "#dashboard-search"].forEach((selector) =>
     $(selector).addEventListener("input", renderDashboard)
   );
-  ["#order-search", "#order-status-filter"].forEach((selector) => $(selector).addEventListener("input", renderOrders));
+  ["#order-search", "#order-status-filter", "#order-source-filter"].forEach((selector) => $(selector).addEventListener("input", renderOrders));
 
   $("#reset-order-form").addEventListener("click", () => {
     $("#order-form").reset();
@@ -981,8 +1078,10 @@ function bindEvents() {
       $("#order-id").value = order.id;
       $("#order-customer").value = order.customerName;
       $("#order-member").value = order.memberCode;
+      $("#order-source").value = order.sourceId || "";
       $("#order-activity").value = line.activityId;
       renderSelects();
+      $("#order-source").value = order.sourceId || "";
       $("#order-item").value = line.itemId;
       $("#order-qty").value = line.orderedQty;
       $("#order-note").value = order.note || "";
@@ -1047,7 +1146,7 @@ function bindEvents() {
   $("#import-orders").addEventListener("click", async () => {
     const file = $("#csv-file").files[0];
     if (!file) return;
-    const result = importOrdersCsv(await file.text());
+    const result = importOrdersCsv(await file.text(), $("#import-source").value);
     $("#import-result").innerHTML = `已匯入 ${result.added} 筆訂單。${result.warnings.length ? `<br>${result.warnings.map(escapeHtml).join("<br>")}` : ""}`;
     renderAll();
   });

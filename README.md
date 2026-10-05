@@ -11,6 +11,7 @@
 - 訂單新增、修改、部分取消、部分出貨
 - 收貨登記與可用庫存重新計算
 - 活動與品項分開管理，同名品項不會跨活動混算
+- 訂單來源／平台分類，例如 LINE 群組、線上平台 A、線上平台 B，並可自行新增來源
 - 首頁缺貨總覽
 - 客訴與爭議會員提醒
 - 訂單 CSV 匯入
@@ -91,3 +92,15 @@ using ((select auth.uid()) = user_id);
 登入後按「上傳本機資料」即可把目前資料送上雲端。之後資料變更會自動同步，並同時保留本機備份。
 
 注意：這是單帳號正式版。若未來要多人共同管理、角色權限或平台 API 串接，建議再拆成 `activities`、`items`、`orders`、`order_lines`、`receipts`、`shipments`、`disputes` 等關聯式資料表。
+
+## 訂單來源與 CSV
+
+可以在「活動與品項」頁新增訂單來源／平台。訂單來源會用於手動新增訂單、CSV 匯入預設來源、訂單列表篩選與訂單匯出。
+
+訂單 CSV 可使用欄位：
+
+```text
+customerName, memberCode, activityName, itemName, quantity, note, sourceName
+```
+
+若 CSV 沒有 `sourceName`，系統會使用匯入頁選擇的「匯入預設來源」。若 `sourceName` 有填，名稱需與系統內的來源名稱完全相同。
