@@ -209,7 +209,7 @@ function setAuthStatus(message, type = "neutral") {
 function formatAuthError(error) {
   const message = error?.message || "";
   const normalized = message.toLowerCase();
-  if (normalized.includes("invalid login credentials")) return "登入失敗：Email 或密碼不正確。";
+  if (normalized.includes("invalid login credentials")) return "登入失敗：查無此會員，或密碼不正確。";
   if (normalized.includes("email not confirmed")) return "登入失敗：請先到信箱完成 Email 驗證。";
   if (normalized.includes("signup")) return "帳號建立失敗：目前不允許公開註冊，請到 Supabase 建立使用者。";
   if (normalized.includes("rate limit")) return "登入太頻繁，請稍等一下再試。";
