@@ -305,6 +305,14 @@ input:-webkit-autofill {
   align-items: start;
 }
 
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
 .guide-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -681,6 +689,7 @@ dialog::backdrop {
   .stats-grid,
   .guide-grid,
   .settings-group,
+  .action-grid,
   .filters,
   .filters.compact,
   .panel-grid,
