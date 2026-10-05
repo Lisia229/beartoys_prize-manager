@@ -1042,18 +1042,52 @@ function parseCsv(text) {
   return rows.filter((row) => row.some((cell) => cell.trim()));
 }
 
+const CSV_FIELD_ALIASES = {
+  customerName: ["customerName", "客人姓名", "姓名", "客戶姓名"],
+  memberCode: ["memberCode", "會員代號", "會員編號", "會員ID"],
+  sourceName: ["sourceName", "來源", "訂單來源", "平台"],
+  activityName: ["activityName", "活動名稱", "活動", "賞池"],
+  itemName: ["itemName", "商品名稱", "品項名稱", "商品或賞別", "賞別"],
+  quantity: ["quantity", "orderedQty", "訂購數量", "數量"],
+  cancelledQty: ["cancelledQty", "取消數量"],
+  shippedQty: ["shippedQty", "已出貨數量"],
+  note: ["note", "備註"]
+};
+
+function normalizeCsvRecord(record) {
+  return Object.fromEntries(
+    Object.entries(CSV_FIELD_ALIASES).map(([field, aliases]) => [
+      field,
+      aliases.map((alias) => record[alias]).find((value) => value) || ""
+    ])
+  );
+}
+
 function importOrdersCsv(text, defaultSourceId = "") {
   const rows = parseCsv(text);
   const headers = rows.shift().map((header) => header.trim());
   const result = { added: 0, warnings: [] };
   rows.forEach((row, index) => {
-    const record = Object.fromEntries(headers.map((header, cellIndex) => [header, row[cellIndex]?.trim() || ""]));
+    const rawRecord = Object.fromEntries(headers.map((header, cellIndex) => [header, row[cellIndex]?.trim() || ""]));
+    const record = normalizeCsvRecord(rawRecord);
     const activity = state.activities.find((entry) => entry.name === record.activityName);
     const item = state.items.find((entry) => entry.activityId === activity?.id && entry.name === record.itemName);
     const source = state.sources.find((entry) => entry.name === record.sourceName);
     const quantity = toInt(record.quantity);
-    if (!record.customerName || !record.memberCode || !activity || !item || quantity < 1) {
-      result.warnings.push(`第 ${index + 2} 列略過：資料不完整、活動/品項不存在或數量錯誤。`);
+    const cancelledQty = toInt(record.cancelledQty);
+    const shippedQty = toInt(record.shippedQty);
+    const errors = [];
+    if (!record.customerName) errors.push("缺少客人姓名");
+    if (!record.memberCode) errors.push("缺少會員代號");
+    if (!record.activityName) errors.push("缺少活動名稱");
+    if (record.activityName && !activity) errors.push(`找不到活動「${record.activityName}」`);
+    if (!record.itemName) errors.push("缺少商品名稱");
+    if (record.itemName && activity && !item) errors.push(`找不到品項「${record.itemName}」`);
+    if (quantity < 1) errors.push("訂購數量需大於 0");
+    if (cancelledQty > quantity) errors.push("取消數量不可大於訂購數量");
+    if (shippedQty > quantity - cancelledQty) errors.push("已出貨數量不可大於有效需求");
+    if (errors.length) {
+      result.warnings.push(`第 ${index + 2} 列略過：${errors.join("、")}。`);
       return;
     }
     const warnings = activeDisputeWarnings(record.customerName, record.memberCode);
@@ -1068,7 +1102,7 @@ function importOrdersCsv(text, defaultSourceId = "") {
       memberCode: record.memberCode,
       sourceId: source?.id || defaultSourceId,
       note: record.note || "",
-      lines: [{ id: lineId, activityId: activity.id, itemId: item.id, orderedQty: quantity, cancelledQty: 0, shippedQty: 0 }],
+      lines: [{ id: lineId, activityId: activity.id, itemId: item.id, orderedQty: quantity, cancelledQty, shippedQty }],
       createdAt: now(),
       updatedAt: now()
     });

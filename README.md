@@ -99,10 +99,16 @@ using ((select auth.uid()) = user_id);
 
 可以在「活動與品項」頁新增訂單來源／平台。訂單來源會用於手動新增訂單、CSV 匯入預設來源、訂單列表篩選與訂單匯出。
 
-訂單 CSV 可使用欄位：
+訂單 CSV 可使用英文欄位：
 
 ```text
 customerName, memberCode, activityName, itemName, quantity, note, sourceName
+```
+
+也支援中文欄位：
+
+```csv
+客人姓名,會員代號,活動名稱,商品名稱,訂購數量,取消數量,已出貨數量,備註
 ```
 
 若 CSV 沒有 `sourceName`，系統會使用匯入頁選擇的「匯入預設來源」。若 `sourceName` 有填，名稱需與系統內的來源名稱完全相同。
