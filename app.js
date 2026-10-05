@@ -1366,6 +1366,13 @@ function bindEvents() {
     $("#dispute-id").value = "";
     $("#dispute-flagged").checked = true;
   });
+  $("#fill-lottery-example").addEventListener("click", () => {
+    $("#lottery-activity-name").value = "死神一番賞第 1 彈";
+    $("#lottery-total").value = 80;
+    $("#lottery-lines").value = ["A賞 一護模型 2", "B賞 劍八模型 3", "C賞 夜一模型 5", "D賞 代理證模型 10", "E賞 壓克力立牌 20", "F賞 小卡 40"].join("\n");
+    $("#lottery-result").textContent = "範例已填入，可直接改成你的實際配置。";
+    $("#lottery-result").className = "result-box neutral";
+  });
   $("#close-line-dialog").addEventListener("click", () => $("#line-action-dialog").close());
   $("#close-delete-activity-dialog").addEventListener("click", () => $("#delete-activity-dialog").close());
   $("#delete-activity-form").addEventListener("submit", (event) => {

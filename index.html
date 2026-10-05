@@ -46,13 +46,23 @@
 
     <main class="app-shell hidden" id="app-shell">
       <aside class="sidebar" aria-label="主要功能">
-        <button class="nav-btn active" data-view="dashboard">總覽</button>
-        <button class="nav-btn" data-view="orders">訂單</button>
-        <button class="nav-btn" data-view="inventory">收貨與庫存</button>
-        <button class="nav-btn" data-view="disputes">客訴與爭議</button>
-        <button class="nav-btn" data-view="imports">CSV 匯入匯出</button>
-        <button class="nav-btn" data-view="cloud">雲端同步</button>
-        <button class="nav-btn" data-view="settings">活動與品項</button>
+        <div class="nav-group">
+          <span class="nav-group-label">日常作業</span>
+          <button class="nav-btn active" data-view="dashboard">總覽</button>
+          <button class="nav-btn" data-view="orders">訂單</button>
+          <button class="nav-btn" data-view="receipt">收貨出貨</button>
+          <button class="nav-btn" data-view="inventory">庫存</button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">基礎設定</span>
+          <button class="nav-btn" data-view="settings">活動與品項</button>
+          <button class="nav-btn" data-view="disputes">客訴與爭議</button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-label">資料與系統</span>
+          <button class="nav-btn" data-view="imports">CSV 匯入匯出</button>
+          <button class="nav-btn" data-view="cloud">雲端同步</button>
+        </div>
       </aside>
 
       <section class="content">
@@ -63,8 +73,8 @@
               <p>優先顯示還需要收貨的品項，庫存與訂單變動後會即時計算。</p>
             </div>
             <div class="quick-actions">
-              <button class="primary" data-open-view="inventory" data-focus-panel="receipt">新增收貨</button>
-              <button class="secondary" data-open-view="inventory" data-focus-panel="shipment">登記出貨</button>
+              <button class="primary" data-open-view="receipt" data-focus-panel="receipt">新增收貨</button>
+              <button class="secondary" data-open-view="receipt" data-focus-panel="shipment">登記出貨</button>
             </div>
           </div>
 
@@ -198,11 +208,11 @@
           </div>
         </section>
 
-        <section class="view" id="inventory-view">
+        <section class="view" id="receipt-view">
           <div class="section-heading">
             <div>
-              <h2>收貨、出貨與庫存</h2>
-              <p>收貨只增加庫存；出貨同時更新訂單已出貨數量並扣庫存。</p>
+              <h2>收貨出貨</h2>
+              <p>收到商品就登記收貨；寄給客人就登記出貨。出貨會同時更新訂單與庫存。</p>
             </div>
           </div>
 
@@ -244,6 +254,15 @@
               </label>
               <button class="primary" type="submit">登記出貨</button>
             </form>
+          </div>
+        </section>
+
+        <section class="view" id="inventory-view">
+          <div class="section-heading">
+            <div>
+              <h2>庫存</h2>
+              <p>依活動與品項統計有效需求、尚未出貨、可用庫存、待到貨與還需要收貨。</p>
+            </div>
           </div>
 
           <div class="table-wrap">
@@ -466,26 +485,39 @@ using ((select auth.uid()) = user_id);</code></pre>
           <div class="section-heading">
             <div>
               <h2>活動與品項</h2>
-              <p>相同品名只要屬於不同活動，就會分開計算，不會混在一起。</p>
+              <p>先建立活動與賞別，再新增或匯入訂單。相同品名只要屬於不同活動，就會分開計算。</p>
             </div>
           </div>
 
-          <div class="two-column">
-            <form class="panel" id="activity-form">
-              <h3>新增活動／賞池</h3>
-              <label>
-                活動名稱
-                <input id="activity-name" required />
-              </label>
-              <label>
-                備註
-                <input id="activity-note" />
-              </label>
-              <button class="primary" type="submit">新增活動</button>
-            </form>
+          <section class="guide-grid">
+            <article class="guide-card">
+              <span>1</span>
+              <strong>建立活動與賞別</strong>
+              <p>一番賞建議直接用快速配置，一次建立 A賞、B賞與數量。</p>
+            </article>
+            <article class="guide-card">
+              <span>2</span>
+              <strong>新增或匯入訂單</strong>
+              <p>訂單一定要對到同一個活動與品項，庫存才不會混算。</p>
+            </article>
+            <article class="guide-card">
+              <span>3</span>
+              <strong>收貨與出貨</strong>
+              <p>收到貨就登記收貨；出貨後系統會同時扣庫存與未出貨。</p>
+            </article>
+            <article class="guide-card">
+              <span>4</span>
+              <strong>看缺貨總覽</strong>
+              <p>首頁會自動算出每個品項還需要收多少貨。</p>
+            </article>
+          </section>
 
+          <div class="settings-group">
+            <div>
+              <h3>快速建立整套一番賞</h3>
+              <p class="help">適合一開始建賞池。輸入總抽數，再把每個賞別和數量貼上。</p>
+            </div>
             <form class="panel" id="lottery-form">
-              <h3>快速新增一番賞配置</h3>
               <label>
                 活動名稱
                 <input id="lottery-activity-name" required placeholder="例：死神一番賞第 1 彈" />
@@ -505,34 +537,39 @@ C賞 夜一模型 5"></textarea>
                 <input id="lottery-as-pending" type="checkbox" checked />
                 配置數量先放待到貨
               </label>
-              <button class="primary" type="submit">建立活動與品項</button>
+              <div class="form-actions">
+                <button class="primary" type="submit">建立整套賞池</button>
+                <button class="secondary" id="fill-lottery-example" type="button">填入範例</button>
+              </div>
               <div class="result-box neutral" id="lottery-result">每行請輸入：賞別 名稱 數量。</div>
             </form>
           </div>
 
           <div class="two-column">
-            <form class="panel" id="source-form">
-              <h3>新增訂單來源／平台</h3>
+            <form class="panel" id="activity-form">
+              <h3>只新增活動</h3>
+              <p class="help">適合還不確定賞別配置時先建空活動。</p>
               <label>
-                來源名稱
-                <input id="source-name" required placeholder="例：官方網站、蝦皮、LINE 社群" />
+                活動名稱
+                <input id="activity-name" required placeholder="例：死神抽賞第 1 彈" />
               </label>
               <label>
                 備註
-                <input id="source-note" />
+                <input id="activity-note" />
               </label>
-              <button class="primary" type="submit">新增來源</button>
+              <button class="primary" type="submit">新增活動</button>
             </form>
 
             <form class="panel" id="item-form">
-              <h3>新增品項／賞別</h3>
+              <h3>手動新增單一品項／賞別</h3>
+              <p class="help">適合補新增漏掉的賞別。若是整套一番賞，建議用上方快速配置。</p>
               <label>
                 活動
                 <select id="item-activity" required></select>
               </label>
               <label>
                 品項名稱
-                <input id="item-name" required />
+                <input id="item-name" required placeholder="例：A賞 一護模型" />
               </label>
               <label>
                 期初庫存
@@ -554,6 +591,23 @@ C賞 夜一模型 5"></textarea>
             </form>
           </div>
 
+          <div class="two-column">
+            <form class="panel" id="source-form">
+              <h3>新增訂單來源／平台</h3>
+              <p class="help">用來區分 LINE 群組、線上平台 A、線上平台 B 或未來自己的平台。</p>
+              <label>
+                來源名稱
+                <input id="source-name" required placeholder="例：官方網站、蝦皮、LINE 社群" />
+              </label>
+              <label>
+                備註
+                <input id="source-note" />
+              </label>
+              <button class="primary" type="submit">新增來源</button>
+            </form>
+          </div>
+
+          <h3 class="table-heading">活動管理</h3>
           <div class="table-wrap">
             <table>
               <thead>
@@ -569,6 +623,7 @@ C賞 夜一模型 5"></textarea>
             </table>
           </div>
 
+          <h3 class="table-heading">來源／平台</h3>
           <div class="table-wrap">
             <table>
               <thead>
@@ -582,6 +637,7 @@ C賞 夜一模型 5"></textarea>
             </table>
           </div>
 
+          <h3 class="table-heading">品項／賞別</h3>
           <div class="table-wrap">
             <table>
               <thead>

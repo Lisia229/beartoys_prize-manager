@@ -109,6 +109,20 @@ h3 {
   background: #eef2ed;
 }
 
+.nav-group + .nav-group {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(99, 112, 106, 0.18);
+}
+
+.nav-group-label {
+  display: block;
+  margin: 0 0 8px 4px;
+  color: $muted;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .nav-btn {
   display: block;
   width: 100%;
@@ -289,6 +303,58 @@ input:-webkit-autofill {
 .two-column {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.guide-card {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+  padding: 14px;
+  border: 1px solid $line;
+  border-radius: 8px;
+  background: $panel;
+
+  span {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: $brand;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  strong {
+    font-size: 15px;
+  }
+
+  p {
+    margin-bottom: 0;
+    color: $muted;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+.settings-group {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.table-heading {
+  margin: 22px 0 10px;
 }
 
 .panel {
@@ -556,6 +622,14 @@ dialog::backdrop {
     }
   }
 
+  .nav-group {
+    display: contents;
+  }
+
+  .nav-group-label {
+    display: none;
+  }
+
   .nav-btn {
     width: auto;
     min-width: max-content;
@@ -582,6 +656,8 @@ dialog::backdrop {
   }
 
   .stats-grid,
+  .guide-grid,
+  .settings-group,
   .filters,
   .filters.compact,
   .panel-grid,
