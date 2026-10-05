@@ -1020,6 +1020,7 @@ function handleLotterySubmit(event) {
   const resultBox = $("#lottery-result");
   const activityNameValue = $("#lottery-activity-name").value.trim();
   const total = toInt($("#lottery-total").value);
+  const lastPrizeName = $("#lottery-last-prize").value.trim();
   const parsedLines = $("#lottery-lines")
     .value.split(/\r?\n/)
     .map(parseLotteryLine)
@@ -1032,7 +1033,7 @@ function handleLotterySubmit(event) {
   if (total < 1) errors.push("總抽數需大於 0");
   if (!items.length) errors.push("請至少輸入一個賞別配置");
   if (items.some((item) => item.qty < 1)) errors.push("每個賞別數量都需大於 0");
-  if (itemTotal !== total) errors.push(`賞別數量合計 ${itemTotal}，與總抽數 ${total} 不一致`);
+  if (itemTotal !== total) errors.push(`一般賞數量合計 ${itemTotal}，與總抽數 ${total} 不一致。最後賞不列入總抽數`);
   if (errors.length) {
     resultBox.textContent = errors.join("。");
     resultBox.className = "result-box error";
@@ -1048,7 +1049,9 @@ function handleLotterySubmit(event) {
     createdAt: now(),
     updatedAt: now()
   });
-  items.forEach((item) => {
+  const createdItems = [...items];
+  if (lastPrizeName) createdItems.push({ prize: "最後賞", name: lastPrizeName.replace(/^最後賞\s*/, ""), qty: 1, isLastPrize: true });
+  createdItems.forEach((item) => {
     state.items.push({
       id: uid(),
       activityId,
@@ -1056,14 +1059,14 @@ function handleLotterySubmit(event) {
       initialStock: asPending ? 0 : item.qty,
       incomingPending: asPending ? item.qty : 0,
       stockAdjustment: 0,
-      note: `配置 ${item.qty} 抽`,
+      note: item.isLastPrize ? "最後賞，不列入總抽數" : `配置 ${item.qty} 抽`,
       createdAt: now(),
       updatedAt: now()
     });
   });
   event.target.reset();
   document.querySelector('input[name="lottery-stock-mode"][value="stock"]').checked = true;
-  resultBox.textContent = `已建立「${activityNameValue}」與 ${items.length} 個品項，配置數量已${asPending ? "放入待到貨" : "列入可用庫存"}。`;
+  resultBox.textContent = `已建立「${activityNameValue}」與 ${createdItems.length} 個品項${lastPrizeName ? "，包含最後賞" : ""}，配置數量已${asPending ? "放入待到貨" : "列入可用庫存"}。`;
   resultBox.className = "result-box ok";
   renderAll();
 }
@@ -1370,6 +1373,7 @@ function bindEvents() {
     $("#lottery-activity-name").value = "死神一番賞第 1 彈";
     $("#lottery-total").value = 80;
     $("#lottery-lines").value = ["A賞 一護模型 2", "B賞 劍八模型 3", "C賞 夜一模型 5", "D賞 代理證模型 10", "E賞 壓克力立牌 20", "F賞 小卡 40"].join("\n");
+    $("#lottery-last-prize").value = "一護特別色模型";
     document.querySelector('input[name="lottery-stock-mode"][value="stock"]').checked = true;
     $("#lottery-result").textContent = "範例已填入，可直接改成你的實際配置。";
     $("#lottery-result").className = "result-box neutral";

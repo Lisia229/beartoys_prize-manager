@@ -527,11 +527,15 @@ using ((select auth.uid()) = user_id);</code></pre>
                 <input id="lottery-total" type="number" min="1" step="1" required placeholder="例：80" />
               </label>
               <label>
-                賞別配置
+                一般賞配置
                 <textarea id="lottery-lines" required placeholder="例：
 A賞 一護模型 2
 B賞 劍八模型 3
 C賞 夜一模型 5"></textarea>
+              </label>
+              <label>
+                最後賞名稱
+                <input id="lottery-last-prize" placeholder="例：最後賞 一護特別色模型" />
               </label>
               <fieldset class="radio-group">
                 <legend>這套賞池目前狀態</legend>
@@ -548,7 +552,7 @@ C賞 夜一模型 5"></textarea>
                 <button class="primary" type="submit">建立整套賞池</button>
                 <button class="secondary" id="fill-lottery-example" type="button">填入範例</button>
               </div>
-              <div class="result-box neutral" id="lottery-result">每行請輸入：賞別 名稱 數量。</div>
+              <div class="result-box neutral" id="lottery-result">一般賞合計需等於總抽數；最後賞不列入總抽數。</div>
             </form>
           </div>
 
