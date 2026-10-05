@@ -367,6 +367,32 @@ tr:last-child td {
   border: 1px solid #f1d58d;
 }
 
+.result-box.ok {
+  background: $success-bg;
+  border-color: #badfc8;
+  color: $brand-dark;
+}
+
+.result-box.error {
+  background: $shortage-bg;
+  border-color: #f2c1ba;
+  color: $danger;
+}
+
+.code-block {
+  overflow: auto;
+  margin: 0;
+  max-height: 420px;
+  border: 1px solid $line;
+  border-radius: 8px;
+  padding: 14px;
+  background: #111815;
+  color: #eaf3ee;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
 .hidden {
   display: none;
 }

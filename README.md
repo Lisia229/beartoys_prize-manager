@@ -35,3 +35,42 @@
 - 資料庫
 - 自動備份
 - 抽賞平台事件串接
+
+## Supabase 雲端同步試用
+
+目前已加入 Supabase 試用同步模式。這個版本先把整份資料存成 Supabase `app_state` 表中的一筆 JSON，方便快速測試跨裝置同步。
+
+在 Supabase SQL Editor 執行：
+
+```sql
+create table if not exists public.app_state (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_state enable row level security;
+
+create policy "trial read app state"
+on public.app_state for select
+to anon
+using (true);
+
+create policy "trial insert app state"
+on public.app_state for insert
+to anon
+with check (true);
+
+create policy "trial update app state"
+on public.app_state for update
+to anon
+using (true)
+with check (true);
+```
+
+然後到網站的「雲端同步」分頁輸入：
+
+- Supabase URL
+- Supabase anon key
+
+注意：這是方便試用的公開讀寫設定。正式營運前應改成登入後才能讀寫自己的資料，並重新設計 RLS 權限。

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>抽賞訂單、收貨與出貨管理</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
     <header class="app-header">
@@ -12,7 +13,7 @@
         <p class="eyebrow">抽賞管理第一版</p>
         <h1>訂單、收貨與出貨管理</h1>
       </div>
-      <div class="storage-note">
+      <div class="storage-note" id="storage-note">
         展示版資料儲存在本機瀏覽器 localStorage
       </div>
     </header>
@@ -24,6 +25,7 @@
         <button class="nav-btn" data-view="inventory">收貨與庫存</button>
         <button class="nav-btn" data-view="disputes">客訴與爭議</button>
         <button class="nav-btn" data-view="imports">CSV 匯入匯出</button>
+        <button class="nav-btn" data-view="cloud">雲端同步</button>
         <button class="nav-btn" data-view="settings">活動與品項</button>
       </aside>
 
@@ -322,6 +324,64 @@
                 <input id="backup-file" type="file" accept=".json,application/json" />
               </label>
               <button class="danger" id="clear-data" type="button">清除展示資料</button>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="cloud-view">
+          <div class="section-heading">
+            <div>
+              <h2>Supabase 雲端同步</h2>
+              <p>試用版會把整份管理資料同步到 Supabase 的一筆 JSON 紀錄，方便跨裝置使用。</p>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <form class="panel" id="cloud-form">
+              <h3>連線設定</h3>
+              <label>
+                Supabase URL
+                <input id="cloud-url" placeholder="https://xxxx.supabase.co" />
+              </label>
+              <label>
+                Supabase anon key
+                <input id="cloud-key" type="password" placeholder="只貼 anon public key，不要貼 service_role" />
+              </label>
+              <div class="form-actions">
+                <button class="primary" type="submit">儲存並連線</button>
+                <button class="secondary" id="pull-cloud" type="button">從雲端下載</button>
+                <button class="secondary" id="push-cloud" type="button">上傳本機資料</button>
+                <button class="danger" id="disable-cloud" type="button">停用雲端</button>
+              </div>
+              <div class="result-box" id="cloud-result">尚未設定雲端同步。</div>
+            </form>
+
+            <section class="panel">
+              <h3>Supabase SQL</h3>
+              <p class="help">在 Supabase SQL Editor 先執行這段。這是試用設定，任何拿到 anon key 的人都能讀寫這筆資料；正式版要改成登入和權限控管。</p>
+              <pre class="code-block"><code>create table if not exists public.app_state (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_state enable row level security;
+
+create policy "trial read app state"
+on public.app_state for select
+to anon
+using (true);
+
+create policy "trial insert app state"
+on public.app_state for insert
+to anon
+with check (true);
+
+create policy "trial update app state"
+on public.app_state for update
+to anon
+using (true)
+with check (true);</code></pre>
             </section>
           </div>
         </section>

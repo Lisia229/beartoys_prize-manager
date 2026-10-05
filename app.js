@@ -1,4 +1,6 @@
 const STORAGE_KEY = "beartoys-prize-manager-v1";
+const CLOUD_CONFIG_KEY = "beartoys-prize-manager-cloud-config-v1";
+const CLOUD_ROW_ID = "default";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -11,6 +13,9 @@ const toInt = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
 const signedInt = (value) => Number.parseInt(value, 10) || 0;
 const moneyless = (value) => Number(value || 0).toLocaleString("zh-Hant-TW");
 
+let cloudClient = null;
+let cloudSaveTimer = null;
+let cloudSettings = loadCloudSettings();
 let state = loadState();
 
 function seedState() {
@@ -126,6 +131,143 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  queueCloudSave();
+}
+
+function loadCloudSettings() {
+  const stored = localStorage.getItem(CLOUD_CONFIG_KEY);
+  if (!stored) return { url: "", anonKey: "" };
+  try {
+    return { url: "", anonKey: "", ...JSON.parse(stored) };
+  } catch {
+    return { url: "", anonKey: "" };
+  }
+}
+
+function saveCloudSettings(settings) {
+  cloudSettings = settings;
+  localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(settings));
+}
+
+function hasCloudSettings() {
+  return Boolean(cloudSettings.url && cloudSettings.anonKey);
+}
+
+function createCloudClient() {
+  if (!hasCloudSettings() || !window.supabase?.createClient) return null;
+  return window.supabase.createClient(cloudSettings.url, cloudSettings.anonKey);
+}
+
+function setCloudResult(message, type = "neutral") {
+  const box = $("#cloud-result");
+  if (!box) return;
+  box.textContent = message;
+  box.className = `result-box ${type}`;
+}
+
+function setStorageNote(message) {
+  const note = $("#storage-note");
+  if (note) note.textContent = message;
+}
+
+function updateCloudUi() {
+  const urlInput = $("#cloud-url");
+  const keyInput = $("#cloud-key");
+  if (urlInput) urlInput.value = cloudSettings.url || "";
+  if (keyInput) keyInput.value = cloudSettings.anonKey || "";
+  setStorageNote(
+    cloudClient
+      ? "資料已啟用 Supabase 雲端同步，同時保留本機備份"
+      : "展示版資料儲存在本機瀏覽器 localStorage"
+  );
+}
+
+async function initCloudSync({ pullRemote = true } = {}) {
+  if (!hasCloudSettings()) {
+    cloudClient = null;
+    updateCloudUi();
+    return false;
+  }
+
+  cloudClient = createCloudClient();
+  if (!cloudClient) {
+    setCloudResult("找不到 Supabase SDK，請確認網路可載入 supabase-js。", "error");
+    updateCloudUi();
+    return false;
+  }
+
+  if (!pullRemote) {
+    updateCloudUi();
+    return true;
+  }
+
+  const pulled = await pullCloudState({ quietIfEmpty: true });
+  if (!pulled) await pushCloudState({ quiet: true });
+  setCloudResult(pulled ? "已連線，並載入雲端資料。" : "已連線，並把目前本機資料建立到雲端。", "ok");
+  updateCloudUi();
+  return true;
+}
+
+async function pullCloudState({ quietIfEmpty = false } = {}) {
+  if (!cloudClient) cloudClient = createCloudClient();
+  if (!cloudClient) {
+    setCloudResult("尚未設定 Supabase 連線。", "error");
+    return false;
+  }
+
+  const { data, error } = await cloudClient
+    .from("app_state")
+    .select("data, updated_at")
+    .eq("id", CLOUD_ROW_ID)
+    .maybeSingle();
+
+  if (error) {
+    setCloudResult(`下載失敗：${error.message}`, "error");
+    return false;
+  }
+
+  if (!data?.data) {
+    if (!quietIfEmpty) setCloudResult("雲端目前沒有資料，可以先按「上傳本機資料」。", "neutral");
+    return false;
+  }
+
+  state = { ...seedState(), ...data.data };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll({ skipSave: true });
+  setCloudResult(`已從雲端下載資料。最後更新：${data.updated_at || "未知"}`, "ok");
+  return true;
+}
+
+async function pushCloudState({ quiet = false } = {}) {
+  if (!cloudClient) cloudClient = createCloudClient();
+  if (!cloudClient) {
+    if (!quiet) setCloudResult("尚未設定 Supabase 連線。", "error");
+    return false;
+  }
+
+  const { error } = await cloudClient.from("app_state").upsert({
+    id: CLOUD_ROW_ID,
+    data: state,
+    updated_at: now()
+  });
+
+  if (error) {
+    if (!quiet) setCloudResult(`上傳失敗：${error.message}`, "error");
+    return false;
+  }
+
+  if (!quiet) setCloudResult("已上傳本機資料到 Supabase。", "ok");
+  return true;
+}
+
+function queueCloudSave() {
+  if (!cloudClient) return;
+  window.clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = window.setTimeout(() => {
+    pushCloudState({ quiet: true }).catch((error) => {
+      setCloudResult(`自動同步失敗：${error.message}`, "error");
+    });
+  }, 500);
 }
 
 function activityName(id) {
@@ -393,14 +535,15 @@ function renderItems() {
       .join("") || `<tr><td colspan="7">尚未建立品項。</td></tr>`;
 }
 
-function renderAll() {
-  saveState();
+function renderAll(options = {}) {
+  if (!options.skipSave) saveState();
   renderSelects();
   renderDashboard();
   renderOrders();
   renderInventory();
   renderDisputes();
   renderItems();
+  updateCloudUi();
 }
 
 function showView(viewName) {
@@ -762,6 +905,15 @@ function bindEvents() {
   $("#dispute-form").addEventListener("submit", handleDisputeSubmit);
   $("#activity-form").addEventListener("submit", handleActivitySubmit);
   $("#item-form").addEventListener("submit", handleItemSubmit);
+  $("#cloud-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    saveCloudSettings({
+      url: $("#cloud-url").value.trim(),
+      anonKey: $("#cloud-key").value.trim()
+    });
+    setCloudResult("連線中...", "neutral");
+    await initCloudSync();
+  });
 
   $("#order-activity").addEventListener("change", renderSelects);
   $("#receipt-activity").addEventListener("change", renderSelects);
@@ -880,7 +1032,24 @@ function bindEvents() {
     state = seedState();
     renderAll();
   });
+  $("#pull-cloud").addEventListener("click", async () => {
+    if (!confirm("會用雲端資料覆蓋目前本機資料，確定要下載？")) return;
+    await pullCloudState();
+  });
+  $("#push-cloud").addEventListener("click", async () => {
+    if (!confirm("會用目前本機資料覆蓋雲端資料，確定要上傳？")) return;
+    await pushCloudState();
+  });
+  $("#disable-cloud").addEventListener("click", () => {
+    if (!confirm("停用後只會使用本機 localStorage，雲端資料不會被刪除。確定停用？")) return;
+    localStorage.removeItem(CLOUD_CONFIG_KEY);
+    cloudSettings = { url: "", anonKey: "" };
+    cloudClient = null;
+    updateCloudUi();
+    setCloudResult("已停用雲端同步。", "neutral");
+  });
 }
 
 bindEvents();
 renderAll();
+initCloudSync();
