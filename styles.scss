@@ -168,11 +168,21 @@ h3 {
   border: 1px solid transparent;
   padding: 9px 14px;
   font-weight: 700;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .primary {
   background: $brand;
   color: #fff;
+
+  &:hover {
+    background: $brand-dark;
+    box-shadow: 0 8px 18px rgba(31, 111, 91, 0.18);
+  }
 }
 
 .secondary {
@@ -184,6 +194,43 @@ h3 {
 .danger {
   background: $danger;
   color: #fff;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  box-shadow: none;
+  transform: none;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(31, 111, 91, 0.2);
+  border-color: rgba(31, 111, 91, 0.55);
+}
+
+input:-webkit-autofill {
+  box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: $ink;
+}
+
+.auth-panel {
+  gap: 16px;
+
+  .form-actions {
+    display: block;
+  }
+
+  .primary {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .result-box {
+    margin: 0;
+  }
 }
 
 .stats-grid {
@@ -390,6 +437,12 @@ tr:last-child td {
   background: $success-bg;
   border-color: #badfc8;
   color: $brand-dark;
+}
+
+.result-box.neutral {
+  background: #f7faf6;
+  border-color: $line;
+  color: $muted;
 }
 
 .result-box.error {

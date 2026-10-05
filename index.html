@@ -26,20 +26,20 @@
           <p class="help">請使用已授權的 Email / 密碼登入。未登入前不會顯示訂單、庫存或客訴資料。</p>
         </div>
 
-        <form class="panel" id="gate-auth-form">
+        <form class="panel auth-panel" id="gate-auth-form">
           <h3>登入</h3>
           <label>
-            Email
-            <input id="gate-auth-email" type="email" autocomplete="email" />
+            電子信箱
+            <input id="gate-auth-email" type="email" autocomplete="email" required />
           </label>
           <label>
             密碼
-            <input id="gate-auth-password" type="password" autocomplete="current-password" />
+            <input id="gate-auth-password" type="password" autocomplete="current-password" required />
           </label>
           <div class="form-actions">
-            <button class="primary" id="gate-auth-login" type="button">登入</button>
+            <button class="primary" id="gate-auth-login" type="submit">登入</button>
           </div>
-          <div class="result-box" id="gate-auth-status">尚未登入。</div>
+          <div class="result-box neutral" id="gate-auth-status">尚未登入。</div>
         </form>
       </div>
     </section>

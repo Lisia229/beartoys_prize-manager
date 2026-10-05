@@ -205,12 +205,31 @@ function setAuthStatus(message, type = "neutral") {
   });
 }
 
+function formatAuthError(error) {
+  const message = error?.message || "";
+  const normalized = message.toLowerCase();
+  if (normalized.includes("invalid login credentials")) return "登入失敗：Email 或密碼不正確。";
+  if (normalized.includes("email not confirmed")) return "登入失敗：請先到信箱完成 Email 驗證。";
+  if (normalized.includes("signup")) return "帳號建立失敗：目前不允許公開註冊，請到 Supabase 建立使用者。";
+  if (normalized.includes("rate limit")) return "登入太頻繁，請稍等一下再試。";
+  return `登入失敗：${message || "請確認帳號密碼後再試。"}`;
+}
+
+function setLoginBusy(isBusy) {
+  ["#auth-login", "#gate-auth-login"].forEach((selector) => {
+    const button = $(selector);
+    if (!button) return;
+    button.disabled = isBusy;
+    button.textContent = isBusy ? "登入中..." : "登入";
+  });
+}
+
 function setStorageNote(message) {
   const note = $("#storage-note");
   if (note) note.textContent = message;
 }
 
-function updateCloudUi() {
+function updateCloudUi({ authStatus = true } = {}) {
   ["#cloud-url"].forEach((selector) => {
     const input = $(selector);
     if (input) input.value = cloudSettings.url || "";
@@ -219,7 +238,9 @@ function updateCloudUi() {
     const input = $(selector);
     if (input) input.value = cloudSettings.anonKey || "";
   });
-  setAuthStatus(cloudUser ? `已登入：${cloudUser.email || cloudUser.id}` : "尚未登入。", cloudUser ? "ok" : "neutral");
+  if (authStatus) {
+    setAuthStatus(cloudUser ? `已登入：${cloudUser.email || cloudUser.id}` : "尚未登入。", cloudUser ? "ok" : "neutral");
+  }
   setStorageNote(
     cloudClient && cloudUser
       ? "資料已啟用 Supabase 雲端同步，同時保留本機備份"
@@ -245,7 +266,7 @@ async function initCloudSync({ pullRemote = true } = {}) {
   if (!cloudClient) {
     setCloudResult("找不到 Supabase SDK，請確認網路可載入 supabase-js。", "error");
     setAuthStatus("雲端連線載入失敗，請確認網路後重新整理。", "error");
-    updateCloudUi();
+    updateCloudUi({ authStatus: false });
     return false;
   }
 
@@ -356,22 +377,34 @@ function queueCloudSave() {
 }
 
 async function signInWithEmail(email, password) {
-  if (!cloudClient) await initCloudSync({ pullRemote: false });
-  if (!cloudClient) {
-    setAuthStatus("雲端連線尚未完成，請重新整理後再試。", "error");
+  if (!email || !password) {
+    setAuthStatus("請輸入 Email 和密碼。", "error");
     return;
   }
-  const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    setAuthStatus(`登入失敗：${error.message}`, "error");
-    return;
+  setLoginBusy(true);
+  try {
+    if (!cloudClient) await initCloudSync({ pullRemote: false });
+    if (!cloudClient) {
+      setAuthStatus("雲端連線尚未完成，請重新整理後再試。", "error");
+      return;
+    }
+    setAuthStatus("正在登入，請稍候...", "neutral");
+    const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthStatus(formatAuthError(error), "error");
+      return;
+    }
+    cloudUser = data.user;
+    setAuthStatus(`已登入：${cloudUser.email}`, "ok");
+    const pulled = await pullCloudState({ quietIfEmpty: true });
+    if (!pulled) await pushCloudState({ quiet: true });
+    if (!pulled) renderAll({ skipSave: true });
+    updateCloudUi();
+  } catch (error) {
+    setAuthStatus(`登入時發生錯誤：${error.message || "請稍後再試。"}`, "error");
+  } finally {
+    setLoginBusy(false);
   }
-  cloudUser = data.user;
-  setAuthStatus(`已登入：${cloudUser.email}`, "ok");
-  const pulled = await pullCloudState({ quietIfEmpty: true });
-  if (!pulled) await pushCloudState({ quiet: true });
-  if (!pulled) renderAll({ skipSave: true });
-  updateCloudUi();
 }
 
 async function signUpWithEmail(email, password) {
@@ -1128,8 +1161,14 @@ function bindEvents() {
     setCloudResult("設定已儲存，正在讀取登入狀態...", "neutral");
     await initCloudSync();
   });
-  $("#auth-form").addEventListener("submit", (event) => event.preventDefault());
-  $("#gate-auth-form").addEventListener("submit", (event) => event.preventDefault());
+  $("#auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await signInWithEmail($("#auth-email").value.trim(), $("#auth-password").value);
+  });
+  $("#gate-auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await signInWithEmail($("#gate-auth-email").value.trim(), $("#gate-auth-password").value);
+  });
 
   $("#order-activity").addEventListener("change", renderSelects);
   $("#receipt-activity").addEventListener("change", renderSelects);
@@ -1279,9 +1318,6 @@ function bindEvents() {
   });
   $("#auth-logout").addEventListener("click", async () => {
     await signOut();
-  });
-  $("#gate-auth-login").addEventListener("click", async () => {
-    await signInWithEmail($("#gate-auth-email").value.trim(), $("#gate-auth-password").value);
   });
 }
 
